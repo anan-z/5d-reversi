@@ -27,15 +27,21 @@ MIT LICENSE, README stub."
 board_size, max_retro_depth) and a `Board` class backed by a flat `Int8Array`
 (not nested arrays), with coordinate<->index conversion for arbitrary N and
 dimension_count=4. Include the parity-based opening setup from the spec
-(Section 4.1) generalized for any even N."
+(Section 4.1) generalized for any even N. Also implement a canonical
+`hashBoard(board) -> string` function per ADR-010
+(docs/architecture/decisions.md) — a stable hash over the board's cell
+contents — since later steps' property tests will assert on hash equality
+rather than full board comparison."
 
 **Goal:** You can construct a board at N=4/6/8 and get the correct 16-disc
-opening position at each size.
+opening position at each size, and hash any board state to a stable string.
 
 **Test before moving on:**
 - Unit test: N=4 board matches the exact 16 coordinates from Section 4.2 of the spec
 - Unit test: N=6 and N=8 boards produce a legal, symmetric, parity-correct opening
 - Unit test: coordinate<->index round-trips for all cells at N=4,6,8
+- Unit test: `hashBoard` is stable (same board contents -> same hash across
+  repeated calls) and sensitive (changing any single cell changes the hash)
 
 ---
 
@@ -78,6 +84,10 @@ determination (majority discs, White wins ties) per spec Section 9."
 - Property test: for every turn, `reducer.replay(moveLog[0..n])` equals the
   cached snapshot at turn n — the cache and the source of truth can never
   diverge, by construction, not just by convention
+- Property test (ADR-010): `hashBoard(reducer.replay(moveLog[0..n]))` equals
+  `hashBoard(cachedSnapshotAtTurn(n))` for every turn — same check as above,
+  expressed as the cheap hash comparison that later steps and CI failure
+  logs will actually use day to day
 - Run 1,000+ random-legal-move self-play games in CI, assert no crashes/invariant violations
 
 ---
@@ -94,14 +104,18 @@ in the project.
 **Test before moving on:**
 - Property test: replaying a retro insertion twice with identical inputs
   produces byte-identical resulting timelines (determinism)
+- Property test (ADR-010): replaying a retro insertion twice with identical
+  inputs produces the *same final hash* — the practical, cheap version of
+  the determinism check above, and the form CI failures/bug reports should
+  actually cite (e.g. "diverges at turn 31: expected hash abc123, got def456")
 - Property test: a retro move can never be inserted onto a non-empty cell in
   the target snapshot
 - Property test: after replay, every turn's board state is derivable purely
   from (opening position + ordered move list) — i.e., replay-from-scratch
   equals incremental-update
 - Regression corpus: hand-construct 5-10 specific retro scenarios (including
-  a cascading multi-turn invalidation) with manually verified expected output,
-  commit as fixtures
+  a cascading multi-turn invalidation) with manually verified expected output
+  **and expected hash**, commit as fixtures
 - **This is the gate to spend real time on.** Don't proceed to Step 5 until
   you've thrown thousands of randomized games with random retro insertions at
   this and nothing has diverged or crashed.

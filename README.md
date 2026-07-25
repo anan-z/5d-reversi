@@ -58,6 +58,10 @@ plan and current progress.
   optional, always-reproducible cache. This is what makes retro-move
   replay a clean "splice and re-run the reducer" operation instead of
   in-place patching of materialized boards. — ADR-009
+- **Every game state has a canonical hash.** Cheap fingerprinting for
+  replay verification, bug reports, and (later) transposition tables —
+  built alongside the board representation in Step 1, not retrofitted.
+  — ADR-010
 
 ## Repository layout
 

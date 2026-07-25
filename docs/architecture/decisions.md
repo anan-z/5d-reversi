@@ -243,6 +243,53 @@ storage model up front in Step 3, which this ADR fixes.
 
 ---
 
+### ADR-010: Deterministic state hashing
+
+**Decision:** The engine exposes a canonical hash function over game
+state — `hash(openingPosition, moveLog[0..n]) -> string` (algorithm TBD
+at implementation time, e.g. SHA-256 over a canonical serialization of
+the board + relevant metadata) — computable at any turn, including after
+retro replay.
+
+**Why:** Under the event-sourced model (ADR-009), "is this state correct"
+currently means comparing full board arrays or full move logs directly.
+A canonical hash makes several things cheap that would otherwise require
+shipping/diffing full state:
+- **Replay verification:** confirm `hash` before and after a
+  retro-insertion-plus-replay matches an independently-computed
+  expected value, without comparing full board arrays.
+- **Bug reports:** a player or CI failure can cite a short hash instead
+  of a full board dump — "diverges at turn 31, expected hash `abc123`,
+  got `def456`."
+- **Determinism property tests (Steps 3-4):** "replaying the same move
+  log twice produces byte-identical results" becomes "produces the same
+  hash," which is both a cheaper assertion and a more natural one to log
+  from CI failures.
+- **Future AI tournament / transposition-table use:** a fast, stable
+  position identity is a prerequisite for transposition tables (roadmap
+  Step 10) and for tournament infrastructure that needs to detect
+  repeated positions — worth having the hash function exist and be
+  stable before those features need it, rather than retrofitting a
+  hashing scheme onto an already-built search.
+
+**Consequence:** Roadmap Steps 3 and 4 gain an explicit hash-equality
+check alongside their existing property tests (see
+`docs/roadmap/build-steps.md`, updated). The hash function itself should
+be implemented and tested in Step 1-2 (alongside board representation)
+so it's available from the first property tests onward, not bolted on
+later.
+
+**Explicitly out of scope for this ADR:** hash *collision handling*,
+cryptographic security properties, or using the hash as a substitute for
+storing the actual move log (ADR-009 already establishes the move log as
+the canonical source of truth — the hash is a fingerprint for
+verification, never a replacement for the underlying state).
+
+**Credit:** raised by an external design review (ChatGPT, relayed via
+the user, July 2026).
+
+---
+
 ## Open items (not yet decided)
 
 - **Agent commentary/explanation channel.** The protocol currently has no
