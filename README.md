@@ -16,6 +16,17 @@ typechecked and validated but not yet wired to a running engine. See
 `docs/roadmap/build-steps.md` for the concrete, gated, step-by-step build
 plan and current progress.
 
+## 🎮 Try the Prototype
+
+Play the single-file browser prototype (no install, no build):
+
+**[▶ Play 5D Reversi](https://anan-z.github.io/5d-reversi/prototype/)**
+
+This is a functional reference implementation of the core rules —
+4D spatial play, 80-direction flipping, and temporal retrocausality
+with deterministic replay. It does not yet reflect the final modular
+architecture planned for v1.
+
 ## Start here
 
 | If you want to... | Read |

@@ -1,0 +1,1607 @@
+<!DOCTYPE html>
+<!--
+================================================================================
+  5D REVERSI
+  4D Spatial Strategy with Temporal Retrocausality
+
+  Game Concept, Rules & Design Brief
+    Author:  Anan Zeevy
+    Date:    January 2026
+    License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+
+  Code Implementation
+    Built by: Kimi (Moonshot AI)
+    Date:     2026
+    License:  MIT License
+
+  Repository
+    https://github.com/anan-z/5d-reversi
+
+  Description
+    A complete, single-file browser implementation of 5D Reversi.
+    Features configurable board sizes (4/6/8), AI opponents (Easy/
+    Medium/Hard), six 2D slice projections, timeline replay, and
+    temporal retrocausality with deterministic forward replay.
+
+  How to Play
+    Open this file in any modern web browser. No server, no build step,
+    no external dependencies required.
+================================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>5D Reversi</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0d0d1a;
+    --bg-panel: #12122a;
+    --bg-cell: #1a1a3e;
+    --bg-cell-hover: #2a2a5e;
+    --text: #e94560;
+    --text-light: #e0e0f0;
+    --text-dim: #7777aa;
+    --black: #0a0a0a;
+    --white: #f5f5f5;
+    --accent: #e94560;
+    --accent-hover: #ff6b81;
+    --green: #4ecca3;
+    --yellow: #f9d423;
+    --border: #2a2a55;
+    --preview-black: rgba(10,10,10,0.55);
+    --preview-white: rgba(245,245,245,0.55);
+    --flip-hl: rgba(249,212,35,0.4);
+  }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text-light);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+  .screen { display: none; width: 100%; max-width: 1000px; padding: 16px; }
+  .screen.active { display: block; }
+
+  /* Menu */
+  .menu-title {
+    font-size: 3.2rem;
+    text-align: center;
+    margin: 30px 0 8px;
+    background: linear-gradient(90deg, var(--accent), var(--yellow));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -1px;
+  }
+  .menu-subtitle { text-align: center; color: var(--text-dim); margin-bottom: 30px; font-size: 0.95rem; }
+  .menu-section {
+    background: var(--bg-panel);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border);
+  }
+  .menu-section h3 { color: var(--accent); margin-bottom: 14px; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px; }
+  .option-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .option-btn {
+    background: var(--bg-cell);
+    border: 2px solid var(--border);
+    color: var(--text-light);
+    padding: 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: all 0.2s;
+    text-align: center;
+    font-weight: 500;
+  }
+  .option-btn:hover { border-color: var(--accent); background: #1e1e4a; }
+  .option-btn.selected {
+    border-color: var(--accent);
+    background: rgba(233,69,96,0.12);
+    box-shadow: 0 0 12px rgba(233,69,96,0.15);
+  }
+  .start-btn {
+    width: 100%;
+    padding: 16px;
+    font-size: 1.2rem;
+    background: linear-gradient(135deg, var(--accent), #c73e54);
+    border: none;
+    border-radius: 14px;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+  .start-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(233,69,96,0.3); }
+
+  /* Game Header */
+  .game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-panel);
+    border-radius: 14px;
+    padding: 14px 20px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .score-box { display: flex; align-items: center; gap: 8px; font-size: 1.1rem; font-weight: bold; }
+  .score-disc { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border); }
+  .score-disc.black { background: radial-gradient(circle at 35% 35%, #333, var(--black)); box-shadow: 0 0 8px rgba(0,0,0,0.6); }
+  .score-disc.white { background: radial-gradient(circle at 35% 35%, #fff, #ddd); box-shadow: 0 0 8px rgba(255,255,255,0.15); }
+  .turn-indicator {
+    font-size: 1rem;
+    padding: 8px 18px;
+    border-radius: 20px;
+    background: var(--bg-cell);
+    border: 2px solid var(--border);
+    transition: all 0.3s;
+    font-weight: 600;
+  }
+  .turn-indicator.black-turn { border-color: #444; box-shadow: 0 0 12px rgba(0,0,0,0.6); }
+  .turn-indicator.white-turn { border-color: #bbb; box-shadow: 0 0 12px rgba(255,255,255,0.1); }
+  .turn-indicator.retro-turn { border-color: var(--yellow); color: var(--yellow); box-shadow: 0 0 12px rgba(249,212,35,0.2); }
+  .quit-btn {
+    background: transparent;
+    border: 2px solid var(--accent);
+    color: var(--accent);
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    font-weight: 500;
+  }
+  .quit-btn:hover { background: var(--accent); color: white; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; justify-content: center; flex-wrap: wrap; }
+  .tab {
+    padding: 8px 18px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .tab:hover { color: var(--text-light); border-color: var(--accent); }
+  .tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+  /* Board */
+  .board-container {
+    background: var(--bg-panel);
+    border-radius: 14px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    overflow: auto;
+    max-height: 68vh;
+  }
+  .meta-grid { display: grid; gap: 6px; justify-content: center; }
+  .meta-cell { display: flex; flex-direction: column; align-items: center; }
+  .meta-label { font-size: 0.65rem; color: var(--text-dim); margin-bottom: 3px; font-weight: 600; letter-spacing: 0.5px; }
+  .mini-board {
+    display: grid;
+    gap: 2px;
+    background: #0a0a20;
+    padding: 3px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+  .cell {
+    width: 28px; height: 28px;
+    background: var(--bg-cell);
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.1s;
+    position: relative;
+  }
+  .cell:hover:not(.occupied) { background: var(--bg-cell-hover); }
+  .cell.occupied { cursor: default; }
+  .cell.legal-hint { box-shadow: inset 0 0 0 1px rgba(78,204,163,0.3); }
+  .cell.preview-black { background: var(--preview-black); }
+  .cell.preview-white { background: var(--preview-white); }
+  .cell.flip-preview { background: var(--flip-hl) !important; }
+  .disc {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+  }
+  .disc.black {
+    background: radial-gradient(circle at 35% 35%, #3a3a3a, var(--black));
+    box-shadow: 0 2px 5px rgba(0,0,0,0.7), inset 0 1px 1px rgba(255,255,255,0.08);
+  }
+  .disc.white {
+    background: radial-gradient(circle at 35% 35%, #fff, #ddd);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.9);
+  }
+  .disc.placed { animation: placeDisc 0.35s ease; }
+  @keyframes placeDisc { 0% { transform: scale(0); opacity: 0; } 60% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(1); } }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-panel);
+    border-radius: 14px;
+    padding: 14px 20px;
+    margin-top: 12px;
+    border: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .retro-btn {
+    padding: 10px 20px;
+    border-radius: 10px;
+    border: 2px solid var(--yellow);
+    background: transparent;
+    color: var(--yellow);
+    font-size: 0.95rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .retro-btn:hover { background: rgba(249,212,35,0.08); }
+  .retro-btn.active { background: var(--yellow); color: var(--bg); }
+  .retro-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .pass-btn {
+    padding: 10px 18px;
+    border-radius: 10px;
+    border: 2px solid var(--green);
+    background: transparent;
+    color: var(--green);
+    font-size: 0.9rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .pass-btn:hover { background: rgba(78,204,163,0.08); }
+  .pass-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .pass-btn.auto-pass { animation: pulseGreen 1s infinite; }
+  @keyframes pulseGreen { 0%,100% { box-shadow: 0 0 0 0 rgba(78,204,163,0.4); } 50% { box-shadow: 0 0 0 6px rgba(78,204,163,0); } }
+  .timeline-wrap { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 180px; }
+  .timeline-wrap label { color: var(--text-dim); font-size: 0.85rem; white-space: nowrap; }
+  .timeline-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 5px;
+    background: var(--bg-cell);
+    border-radius: 3px;
+    outline: none;
+  }
+  .timeline-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(233,69,96,0.4);
+  }
+  .turn-info { color: var(--text-dim); font-size: 0.85rem; text-align: right; }
+
+  /* Retro Panel */
+  .retro-panel {
+    background: rgba(249,212,35,0.04);
+    border: 1px solid rgba(249,212,35,0.3);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-top: 10px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .retro-panel.active { display: flex; }
+  .retro-panel span { color: var(--yellow); font-size: 0.85rem; }
+  .retro-turns { display: flex; gap: 5px; flex-wrap: wrap; }
+  .retro-turn-btn {
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-cell);
+    color: var(--text-light);
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+  }
+  .retro-turn-btn:hover { border-color: var(--yellow); }
+  .retro-turn-btn.selected { background: var(--yellow); color: var(--bg); border-color: var(--yellow); }
+
+  /* Game Over */
+  .gameover-screen {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .gameover-screen.active { display: flex; }
+  .gameover-box {
+    background: var(--bg-panel);
+    border-radius: 20px;
+    padding: 36px;
+    text-align: center;
+    border: 2px solid var(--accent);
+    box-shadow: 0 0 40px rgba(233,69,96,0.15);
+    max-width: 380px;
+    width: 90%;
+  }
+  .gameover-title { font-size: 2.2rem; margin-bottom: 8px; }
+  .gameover-winner { font-size: 1.3rem; color: var(--accent); margin-bottom: 18px; }
+  .gameover-scores { display: flex; justify-content: center; gap: 36px; margin-bottom: 24px; }
+  .gameover-score { text-align: center; }
+  .gameover-score .disc { width: 36px; height: 36px; margin: 0 auto 6px; }
+  .gameover-score .count { font-size: 1.6rem; font-weight: bold; }
+  .gameover-buttons { display: flex; gap: 10px; justify-content: center; }
+  .gameover-btn {
+    padding: 12px 24px;
+    border-radius: 10px;
+    border: none;
+    font-size: 0.95rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .gameover-btn.primary { background: var(--accent); color: white; }
+  .gameover-btn.primary:hover { background: var(--accent-hover); transform: translateY(-2px); }
+  .gameover-btn.secondary { background: var(--bg-cell); color: var(--text-light); border: 1px solid var(--border); }
+  .gameover-btn.secondary:hover { border-color: var(--accent); }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--bg-panel);
+    color: var(--text-light);
+    padding: 12px 24px;
+    border-radius: 10px;
+    border: 1px solid var(--accent);
+    font-size: 0.95rem;
+    z-index: 200;
+    opacity: 0;
+    transition: all 0.35s ease;
+    pointer-events: none;
+    max-width: 90vw;
+    text-align: center;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .menu-title { font-size: 2rem; }
+    .option-grid { grid-template-columns: 1fr; }
+    .cell { width: 22px; height: 22px; }
+    .disc { width: 16px; height: 16px; }
+    .game-header { flex-direction: column; text-align: center; padding: 12px; }
+    .controls { flex-direction: column; align-items: stretch; }
+    .timeline-wrap { width: 100%; }
+    .board-container { padding: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="menuScreen" class="screen active">
+  <h1 class="menu-title">5D Reversi</h1>
+  <p class="menu-subtitle">4D Spatial Strategy with Temporal Retrocausality</p>
+  <div class="menu-section">
+    <h3>Board Size</h3>
+    <div class="option-grid">
+      <button class="option-btn selected" data-size="4">4 &times; 4 &times; 4 &times; 4</button>
+      <button class="option-btn" data-size="6">6 &times; 6 &times; 6 &times; 6</button>
+      <button class="option-btn" data-size="8">8 &times; 8 &times; 8 &times; 8</button>
+    </div>
+  </div>
+  <div class="menu-section">
+    <h3>Difficulty</h3>
+    <div class="option-grid">
+      <button class="option-btn selected" data-diff="easy">Easy</button>
+      <button class="option-btn" data-diff="medium">Medium</button>
+      <button class="option-btn" data-diff="hard">Hard</button>
+    </div>
+  </div>
+  <div class="menu-section">
+    <h3>Mode</h3>
+    <div class="option-grid">
+      <button class="option-btn selected" data-mode="pvp">Player vs Player</button>
+      <button class="option-btn" data-mode="pve">Player vs AI</button>
+    </div>
+  </div>
+  <button class="start-btn" id="startBtn">Start Game</button>
+</div>
+
+<div id="gameScreen" class="screen">
+  <div class="game-header">
+    <div class="score-box">
+      <div class="score-disc black"></div>
+      <span id="blackScore">2</span>
+    </div>
+    <div class="turn-indicator black-turn" id="turnIndicator">Black's Turn</div>
+    <div class="score-box">
+      <span id="whiteScore">2</span>
+      <div class="score-disc white"></div>
+    </div>
+    <button class="quit-btn" id="quitBtn">Quit to Menu</button>
+  </div>
+  <div class="tabs" id="projectionTabs">
+    <button class="tab active" data-proj="xy">XY</button>
+    <button class="tab" data-proj="xz">XZ</button>
+    <button class="tab" data-proj="yz">YZ</button>
+    <button class="tab" data-proj="wx">WX</button>
+    <button class="tab" data-proj="wy">WY</button>
+    <button class="tab" data-proj="wz">WZ</button>
+  </div>
+  <div class="board-container" id="boardContainer">
+    <div class="meta-grid" id="metaGrid"></div>
+  </div>
+  <div class="retro-panel" id="retroPanel">
+    <span>Select your past turn:</span>
+    <div class="retro-turns" id="retroTurns"></div>
+  </div>
+  <div class="controls">
+    <button class="retro-btn" id="retroBtn"><span>&#9889;</span> Retro Mode</button>
+    <button class="pass-btn" id="passBtn">Pass</button>
+    <button class="pass-btn" id="exportBtn" style="border-color:#f9d423;color:#f9d423;">&#128190; Export</button>
+    <label class="pass-btn" for="importFile" style="border-color:#4ecca3;color:#4ecca3;cursor:pointer;display:inline-block;">&#128194; Import</label>
+    <input type="file" id="importFile" accept=".json" style="display:none;">
+    <div class="timeline-wrap">
+      <label>History:</label>
+      <input type="range" class="timeline-slider" id="timelineSlider" min="0" max="0" value="0">
+      <span class="turn-info" id="turnInfo">Turn 1</span>
+    </div>
+  </div>
+</div>
+
+<div class="gameover-screen" id="gameOverScreen">
+  <div class="gameover-box">
+    <div class="gameover-title" id="gameOverTitle">Game Over</div>
+    <div class="gameover-winner" id="gameOverWinner">Black Wins!</div>
+    <div class="gameover-scores">
+      <div class="gameover-score">
+        <div class="disc black"></div>
+        <div class="count" id="finalBlack">2</div>
+      </div>
+      <div class="gameover-score">
+        <div class="disc white"></div>
+        <div class="count" id="finalWhite">2</div>
+      </div>
+    </div>
+    <div class="gameover-buttons">
+      <button class="gameover-btn primary" id="playAgainBtn">Play Again</button>
+      <button class="gameover-btn secondary" id="exportGameOverBtn">&#128190; Export Log</button>
+      <button class="gameover-btn secondary" id="mainMenuBtn">Main Menu</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== CONSTANTS ====================
+const EMPTY = 0, BLACK = 1, WHITE = 2;
+const OPP = { [BLACK]: WHITE, [WHITE]: BLACK };
+const PLAYER_NAME = { [BLACK]: 'Black', [WHITE]: 'White' };
+
+// Precompute 80 direction vectors in 4D
+const DIRS = (() => {
+  const d = [];
+  for (let dw = -1; dw <= 1; dw++)
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dz = -1; dz <= 1; dz++)
+          if (dw !== 0 || dx !== 0 || dy !== 0 || dz !== 0)
+            d.push([dw, dx, dy, dz]);
+  return d;
+})();
+
+// ==================== ENGINE ====================
+class Engine {
+  constructor(N) {
+    this.N = N;
+    this.N4 = N * N * N * N;
+    this.board = new Uint8Array(this.N4);
+    this.history = []; // { turn, player, type, coord: [w,x,y,z], targetTurn? }
+    this.turn = 1;
+    this.currentPlayer = BLACK;
+    this.retroUsed = { [BLACK]: false, [WHITE]: false };
+    this.consecutivePasses = 0;
+    this.gameOver = false;
+    this.setup();
+  }
+
+  idx(w, x, y, z) {
+    return ((w * this.N + x) * this.N + y) * this.N + z;
+  }
+
+  get(w, x, y, z) {
+    if (w < 0 || w >= this.N || x < 0 || x >= this.N || y < 0 || y >= this.N || z < 0 || z >= this.N)
+      return null;
+    return this.board[this.idx(w, x, y, z)];
+  }
+
+  set(w, x, y, z, val) {
+    this.board[this.idx(w, x, y, z)] = val;
+  }
+
+  setup() {
+    const c1 = this.N / 2 - 1;
+    const c2 = this.N / 2;
+    const C = [c1, c2];
+    for (const w of C)
+      for (const x of C)
+        for (const y of C)
+          for (const z of C) {
+            const parity = (w + x + y + z) & 1;
+            this.board[this.idx(w, x, y, z)] = parity === 0 ? BLACK : WHITE;
+          }
+  }
+
+  getFlips(w, x, y, z, player) {
+    if (this.get(w, x, y, z) !== EMPTY) return [];
+    const opp = OPP[player];
+    const allFlips = [];
+    for (let i = 0; i < 80; i++) {
+      const [dw, dx, dy, dz] = DIRS[i];
+      const line = [];
+      let cw = w + dw, cx = x + dx, cy = y + dy, cz = z + dz;
+      while (true) {
+        const v = this.get(cw, cx, cy, cz);
+        if (v === opp) {
+          line.push([cw, cx, cy, cz]);
+          cw += dw; cx += dx; cy += dy; cz += dz;
+        } else if (v === player) {
+          if (line.length > 0) allFlips.push(...line);
+          break;
+        } else {
+          break;
+        }
+      }
+    }
+    return allFlips;
+  }
+
+  isLegal(w, x, y, z, player) {
+    return this.get(w, x, y, z) === EMPTY && this.getFlips(w, x, y, z, player).length > 0;
+  }
+
+  hasLegalMove(player) {
+    for (let w = 0; w < this.N; w++)
+      for (let x = 0; x < this.N; x++)
+        for (let y = 0; y < this.N; y++)
+          for (let z = 0; z < this.N; z++)
+            if (this.isLegal(w, x, y, z, player))
+              return true;
+    return false;
+  }
+
+  allLegalMoves(player) {
+    const moves = [];
+    for (let w = 0; w < this.N; w++)
+      for (let x = 0; x < this.N; x++)
+        for (let y = 0; y < this.N; y++)
+          for (let z = 0; z < this.N; z++)
+            if (this.isLegal(w, x, y, z, player))
+              moves.push([w, x, y, z]);
+    return moves;
+  }
+
+  place(w, x, y, z, player) {
+    const flips = this.getFlips(w, x, y, z, player);
+    if (flips.length === 0) return false;
+    this.set(w, x, y, z, player);
+    for (let i = 0; i < flips.length; i++)
+      this.set(flips[i][0], flips[i][1], flips[i][2], flips[i][3], player);
+    return true;
+  }
+
+  count(player) {
+    let c = 0;
+    for (let i = 0; i < this.N4; i++)
+      if (this.board[i] === player) c++;
+    return c;
+  }
+
+  // Build a fresh engine by replaying history from scratch
+  // This is the canonical way to compute state after any history mutation
+  static replay(history, N) {
+    const e = new Engine(N);
+    let consecutivePasses = 0;
+    let maxTurn = 0;
+
+    // Group moves by turn
+    const byTurn = new Map();
+    for (const move of history) {
+      if (!byTurn.has(move.turn)) byTurn.set(move.turn, []);
+      byTurn.get(move.turn).push(move);
+    }
+
+    // Sort turns
+    const turns = Array.from(byTurn.keys()).sort((a, b) => a - b);
+
+    for (const turnNum of turns) {
+      const moves = byTurn.get(turnNum);
+      // Sort: normal first, then retro, then pass
+      moves.sort((a, b) => {
+        const order = { normal: 0, retro: 1, pass: 2, forced_pass: 3 };
+        return (order[a.type] || 0) - (order[b.type] || 0);
+      });
+
+      let anyPlaced = false;
+      for (const move of moves) {
+        if (move.type === 'normal') {
+          if (e.isLegal(move.coord[0], move.coord[1], move.coord[2], move.coord[3], move.player)) {
+            e.place(move.coord[0], move.coord[1], move.coord[2], move.coord[3], move.player);
+            anyPlaced = true;
+          }
+          // else: forced pass - do nothing (original coord was illegal after retro)
+        } else if (move.type === 'retro') {
+          if (e.isLegal(move.coord[0], move.coord[1], move.coord[2], move.coord[3], move.player)) {
+            e.place(move.coord[0], move.coord[1], move.coord[2], move.coord[3], move.player);
+            anyPlaced = true;
+          }
+        }
+        // pass and forced_pass: do nothing
+      }
+
+      if (anyPlaced) consecutivePasses = 0;
+      else consecutivePasses++;
+      maxTurn = Math.max(maxTurn, turnNum);
+    }
+
+    e.turn = maxTurn + 1;
+    e.currentPlayer = (e.turn % 2 === 1) ? BLACK : WHITE;
+    e.consecutivePasses = consecutivePasses;
+    e.gameOver = consecutivePasses >= 2;
+
+    // Check board full
+    let empty = 0;
+    for (let i = 0; i < e.N4; i++) if (e.board[i] === EMPTY) empty++;
+    if (empty === 0) e.gameOver = true;
+
+    return e;
+  }
+
+  // Get snapshot board at a specific turn (after all moves of that turn)
+  snapshotAt(targetTurn) {
+    const e = new Engine(this.N);
+    const byTurn = new Map();
+    for (const move of this.history) {
+      if (move.turn > targetTurn) break;
+      if (!byTurn.has(move.turn)) byTurn.set(move.turn, []);
+      byTurn.get(move.turn).push(move);
+    }
+    for (const [turnNum, moves] of byTurn) {
+      moves.sort((a, b) => {
+        const order = { normal: 0, retro: 1, pass: 2, forced_pass: 3 };
+        return (order[a.type] || 0) - (order[b.type] || 0);
+      });
+      for (const move of moves) {
+        if (move.type === 'normal' || move.type === 'retro') {
+          if (e.isLegal(move.coord[0], move.coord[1], move.coord[2], move.coord[3], move.player))
+            e.place(move.coord[0], move.coord[1], move.coord[2], move.coord[3], move.player);
+        }
+      }
+    }
+    return e.board;
+  }
+
+  // Check if player can perform a retro move
+  canRetro(player) {
+    if (this.retroUsed[player]) return false;
+    if (this.turn <= 2) return false;
+    const minTurn = Math.max(2, this.turn - 10);
+    for (let t = minTurn; t < this.turn; t++) {
+      if ((t & 1) !== (player & 1)) continue; // must be player's turn (odd=Black, even=White)
+      const snap = this.snapshotAt(t);
+      const temp = new Engine(this.N);
+      temp.board.set(snap);
+      for (let w = 0; w < this.N; w++)
+        for (let x = 0; x < this.N; x++)
+          for (let y = 0; y < this.N; y++)
+            for (let z = 0; z < this.N; z++)
+              if (temp.isLegal(w, x, y, z, player))
+                return true;
+    }
+    return false;
+  }
+
+  // Perform normal move
+  doNormal(w, x, y, z) {
+    if (this.gameOver) return false;
+    if (!this.place(w, x, y, z, this.currentPlayer)) return false;
+    this.history.push({
+      turn: this.turn,
+      player: this.currentPlayer,
+      type: 'normal',
+      coord: [w, x, y, z]
+    });
+    this.consecutivePasses = 0;
+    this.turn++;
+    this.currentPlayer = OPP[this.currentPlayer];
+    this.checkGameOver();
+    return true;
+  }
+
+  // Perform retro move: insert at targetTurn, replay everything
+  doRetro(targetTurn, w, x, y, z) {
+    const player = this.currentPlayer;
+    if (this.retroUsed[player]) return false;
+    if (targetTurn >= this.turn || targetTurn < 2) return false;
+    if ((targetTurn & 1) !== (player & 1)) return false;
+    if (this.turn - targetTurn > 10) return false;
+
+    // Validate: cell must be empty and legal in snapshot at targetTurn
+    const snap = this.snapshotAt(targetTurn);
+    const temp = new Engine(this.N);
+    temp.board.set(snap);
+    if (!temp.isLegal(w, x, y, z, player)) return false;
+
+    // Insert retro move into history
+    this.history.push({
+      turn: targetTurn,
+      player: player,
+      type: 'retro',
+      coord: [w, x, y, z],
+      targetTurn: targetTurn
+    });
+
+    // Add pass for current turn
+    this.history.push({
+      turn: this.turn,
+      player: player,
+      type: 'pass',
+      coord: null
+    });
+
+    // Mark retro used
+    this.retroUsed[player] = true;
+
+    // Rebuild state via deterministic replay
+    const rebuilt = Engine.replay(this.history, this.N);
+    this.board = rebuilt.board;
+    this.turn = rebuilt.turn;
+    this.currentPlayer = rebuilt.currentPlayer;
+    this.consecutivePasses = rebuilt.consecutivePasses;
+    this.gameOver = rebuilt.gameOver;
+
+    return true;
+  }
+
+  doPass() {
+    if (this.gameOver) return false;
+    this.history.push({
+      turn: this.turn,
+      player: this.currentPlayer,
+      type: 'pass',
+      coord: null
+    });
+    this.consecutivePasses++;
+    this.turn++;
+    this.currentPlayer = OPP[this.currentPlayer];
+    this.checkGameOver();
+    return true;
+  }
+
+  checkGameOver() {
+    if (this.consecutivePasses >= 2) { this.gameOver = true; return; }
+    let empty = 0;
+    for (let i = 0; i < this.N4; i++) if (this.board[i] === EMPTY) empty++;
+    if (empty === 0) this.gameOver = true;
+  }
+
+  winner() {
+    const b = this.count(BLACK);
+    const w = this.count(WHITE);
+    if (b > w) return BLACK;
+    if (w > b) return WHITE;
+    return WHITE; // tie -> White wins per spec
+  }
+
+  // Fast clone for AI (no JSON, no history copy)
+  fastClone() {
+    const e = new Engine(this.N);
+    e.board.set(this.board);
+    e.turn = this.turn;
+    e.currentPlayer = this.currentPlayer;
+    e.retroUsed = { [BLACK]: this.retroUsed[BLACK], [WHITE]: this.retroUsed[WHITE] };
+    e.consecutivePasses = this.consecutivePasses;
+    e.gameOver = this.gameOver;
+    // Don't copy history - AI only needs board state for search
+    return e;
+  }
+}
+
+// ==================== AI ====================
+class AI {
+  constructor(difficulty) {
+    this.difficulty = difficulty;
+    this.startTime = 0;
+    this.timeLimit = 3000; // ms
+  }
+
+  move(engine) {
+    const moves = engine.allLegalMoves(engine.currentPlayer);
+    if (moves.length === 0) return null;
+
+    if (this.difficulty === 'easy') {
+      // Slight preference for corners and edges
+      let best = moves[0];
+      let bestScore = -1;
+      const N = engine.N;
+      for (const m of moves) {
+        let score = Math.random() * 10;
+        const isCorner = m.every(v => v === 0 || v === N - 1);
+        const isEdge = m.some(v => v === 0 || v === N - 1);
+        if (isCorner) score += 50;
+        if (isEdge) score += 10;
+        if (score > bestScore) { bestScore = score; best = m; }
+      }
+      return best;
+    }
+
+    if (this.difficulty === 'medium') {
+      let best = moves[0];
+      let bestScore = -Infinity;
+      const N = engine.N;
+      const player = engine.currentPlayer;
+      for (const m of moves) {
+        const clone = engine.fastClone();
+        clone.place(m[0], m[1], m[2], m[3], player);
+        let score = this.evaluate(clone, player);
+        // One-ply lookahead for opponent's best response
+        const oppMoves = clone.allLegalMoves(OPP[player]);
+        if (oppMoves.length > 0) {
+          let worstOpp = Infinity;
+          // Sample a few opponent moves instead of all
+          const sample = oppMoves.length > 8 ? oppMoves.sort(() => Math.random() - 0.5).slice(0, 8) : oppMoves;
+          for (const om of sample) {
+            const c2 = clone.fastClone();
+            c2.place(om[0], om[1], om[2], om[3], OPP[player]);
+            const s = this.evaluate(c2, player);
+            if (s < worstOpp) worstOpp = s;
+          }
+          score = score * 0.6 + worstOpp * 0.4;
+        }
+        if (score > bestScore) { bestScore = score; best = m; }
+      }
+      return best;
+    }
+
+    if (this.difficulty === 'hard') {
+      this.startTime = performance.now();
+      // Adaptive depth: N=4 -> depth 4, N=6 -> depth 3, N=8 -> depth 2
+      let depth = engine.N <= 4 ? 4 : engine.N <= 6 ? 3 : 2;
+      // Reduce depth if too many legal moves
+      if (moves.length > 12) depth = Math.max(2, depth - 1);
+
+      // Move ordering: corners first, then edges, then by flip count
+      const ordered = moves.map(m => {
+        const isCorner = m.every(v => v === 0 || v === engine.N - 1);
+        const isEdge = m.some(v => v === 0 || v === engine.N - 1);
+        const flips = engine.getFlips(m[0], m[1], m[2], m[3], engine.currentPlayer).length;
+        return { move: m, isCorner, isEdge, flips };
+      }).sort((a, b) => {
+        if (a.isCorner && !b.isCorner) return -1;
+        if (!a.isCorner && b.isCorner) return 1;
+        if (a.isEdge && !b.isEdge) return -1;
+        if (!a.isEdge && b.isEdge) return 1;
+        return b.flips - a.flips;
+      }).map(x => x.move);
+
+      const result = this.minimax(engine, depth, -Infinity, Infinity, true, ordered);
+      return result[1] || moves[0];
+    }
+  }
+
+  minimax(engine, depth, alpha, beta, maximizing, moves) {
+    const player = maximizing ? engine.currentPlayer : OPP[engine.currentPlayer];
+    const avail = moves || engine.allLegalMoves(player);
+
+    if (depth === 0 || engine.gameOver || avail.length === 0 || (performance.now() - this.startTime > this.timeLimit)) {
+      return [this.evaluate(engine, maximizing ? engine.currentPlayer : OPP[engine.currentPlayer]), null];
+    }
+
+    let bestMove = avail[0];
+    if (maximizing) {
+      let maxEval = -Infinity;
+      for (const move of avail) {
+        const clone = engine.fastClone();
+        clone.place(move[0], move[1], move[2], move[3], player);
+        clone.currentPlayer = OPP[player];
+        clone.turn++;
+        const evalScore = this.minimax(clone, depth - 1, alpha, beta, false, null)[0];
+        if (evalScore > maxEval) { maxEval = evalScore; bestMove = move; }
+        alpha = Math.max(alpha, evalScore);
+        if (beta <= alpha) break;
+      }
+      return [maxEval, bestMove];
+    } else {
+      let minEval = Infinity;
+      for (const move of avail) {
+        const clone = engine.fastClone();
+        clone.place(move[0], move[1], move[2], move[3], player);
+        clone.currentPlayer = OPP[player];
+        clone.turn++;
+        const evalScore = this.minimax(clone, depth - 1, alpha, beta, true, null)[0];
+        if (evalScore < minEval) { minEval = evalScore; bestMove = move; }
+        beta = Math.min(beta, evalScore);
+        if (beta <= alpha) break;
+      }
+      return [minEval, bestMove];
+    }
+  }
+
+  evaluate(engine, player) {
+    const opp = OPP[player];
+    const N = engine.N;
+    let score = 0;
+
+    // Material (more important late game)
+    const myCount = engine.count(player);
+    const oppCount = engine.count(opp);
+    const total = myCount + oppCount;
+    const materialWeight = total > N * N * 2 ? 3 : 1;
+    score += (myCount - oppCount) * materialWeight;
+
+    // Mobility
+    const myMoves = engine.allLegalMoves(player).length;
+    const oppMoves = engine.allLegalMoves(opp).length;
+    score += (myMoves - oppMoves) * 4;
+
+    // Corners (16 in 4D) - extremely valuable
+    for (let w of [0, N-1])
+      for (let x of [0, N-1])
+        for (let y of [0, N-1])
+          for (let z of [0, N-1]) {
+            const v = engine.get(w, x, y, z);
+            if (v === player) score += 30;
+            else if (v === opp) score -= 30;
+          }
+
+    // Edge stability (any coordinate at boundary)
+    for (let i = 0; i < engine.N4; i++) {
+      const v = engine.board[i];
+      if (v === EMPTY) continue;
+      // Check if edge: at least one coordinate is 0 or N-1
+      const z = i % N;
+      const y = Math.floor(i / N) % N;
+      const x = Math.floor(i / (N * N)) % N;
+      const w = Math.floor(i / (N * N * N));
+      const isEdge = (w === 0 || w === N-1 || x === 0 || x === N-1 || y === 0 || y === N-1 || z === 0 || z === N-1);
+      if (isEdge) {
+        if (v === player) score += 2;
+        else score -= 2;
+      }
+    }
+
+    return score;
+  }
+}
+
+// ==================== UI ====================
+const PROJECTIONS = {
+  xy: { inner: ['x', 'y'], outer: ['w', 'z'], label: 'XY' },
+  xz: { inner: ['x', 'z'], outer: ['w', 'y'], label: 'XZ' },
+  yz: { inner: ['y', 'z'], outer: ['w', 'x'], label: 'YZ' },
+  wx: { inner: ['w', 'x'], outer: ['y', 'z'], label: 'WX' },
+  wy: { inner: ['w', 'y'], outer: ['x', 'z'], label: 'WY' },
+  wz: { inner: ['w', 'z'], outer: ['x', 'y'], label: 'WZ' }
+};
+
+class GameUI {
+  constructor() {
+    this.engine = null;
+    this.ai = null;
+    this.mode = 'pvp';
+    this.difficulty = 'easy';
+    this.projection = 'xy';
+    this.retroMode = false;
+    this.selectedRetroTurn = null;
+    this.viewingTurn = null; // null = present, number = viewing historical turn
+    this.isAIThinking = false;
+    this.cellCache = null; // Cache cell elements for efficient updates
+    this.initMenu();
+  }
+
+  initMenu() {
+    document.querySelectorAll('[data-size]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-size]').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+      });
+    });
+    document.querySelectorAll('[data-diff]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-diff]').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+      });
+    });
+    document.querySelectorAll('[data-mode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+      });
+    });
+    document.getElementById('startBtn').addEventListener('click', () => this.startGame());
+    document.getElementById('quitBtn').addEventListener('click', () => this.quitGame());
+    document.getElementById('passBtn').addEventListener('click', () => this.doPass());
+    document.getElementById('retroBtn').addEventListener('click', () => this.toggleRetro());
+    document.getElementById('playAgainBtn').addEventListener('click', () => this.startGame());
+    document.getElementById('mainMenuBtn').addEventListener('click', () => this.showMenu());
+    document.getElementById('exportBtn').addEventListener('click', () => this.exportGameLog());
+    document.getElementById('exportGameOverBtn').addEventListener('click', () => this.exportGameLog());
+    document.getElementById('importFile').addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        this.importGameLog(e.target.files[0]);
+        e.target.value = ''; // reset
+      }
+    });
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        this.projection = tab.dataset.proj;
+        this.cellCache = null; // projection changed, rebuild
+        this.render();
+      });
+    });
+    document.getElementById('timelineSlider').addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      this.viewingTurn = (val >= this.engine.history.length) ? null : val;
+      this.render();
+    });
+  }
+
+  startGame() {
+    const sizeBtn = document.querySelector('[data-size].selected');
+    const diffBtn = document.querySelector('[data-diff].selected');
+    const modeBtn = document.querySelector('[data-mode].selected');
+    const N = parseInt(sizeBtn.dataset.size);
+    this.difficulty = diffBtn.dataset.diff;
+    this.mode = modeBtn.dataset.mode;
+
+    this.engine = new Engine(N);
+    this.ai = this.mode === 'pve' ? new AI(this.difficulty) : null;
+    this.retroMode = false;
+    this.selectedRetroTurn = null;
+    this.viewingTurn = null;
+    this.isAIThinking = false;
+    this.cellCache = null;
+
+    document.getElementById('menuScreen').classList.remove('active');
+    document.getElementById('gameScreen').classList.add('active');
+    document.getElementById('gameOverScreen').classList.remove('active');
+    document.getElementById('retroBtn').classList.remove('active');
+    document.getElementById('retroBtn').innerHTML = '<span>&#9889;</span> Retro Mode';
+    document.getElementById('retroPanel').classList.remove('active');
+    document.getElementById('passBtn').classList.remove('auto-pass');
+
+    this.updateTimelineSlider();
+    this.render();
+    this.showToast(`Game started! ${PLAYER_NAME[BLACK]} moves first.`);
+
+    if (this.mode === 'pve' && this.engine.currentPlayer === WHITE) {
+      setTimeout(() => this.doAIMove(), 700);
+    }
+  }
+
+  quitGame() {
+    if (confirm('Quit to main menu?')) this.showMenu();
+  }
+
+  showMenu() {
+    document.getElementById('gameScreen').classList.remove('active');
+    document.getElementById('gameOverScreen').classList.remove('active');
+    document.getElementById('menuScreen').classList.add('active');
+  }
+
+  doPass() {
+    if (!this.engine || this.engine.gameOver || this.isAIThinking) return;
+    if (this.retroMode) { this.showToast('Exit Retro Mode first'); return; }
+    if (this.viewingTurn !== null) { this.showToast('Return to present to play'); return; }
+
+    this.engine.doPass();
+    this.showToast(`${PLAYER_NAME[OPP[this.engine.currentPlayer]]} passed`);
+    this.updateTimelineSlider();
+    this.render();
+    this.checkAI();
+  }
+
+  toggleRetro() {
+    if (!this.engine || this.engine.gameOver || this.isAIThinking) return;
+    if (this.viewingTurn !== null) { this.showToast('Return to present first'); return; }
+
+    if (this.retroMode) {
+      this.retroMode = false;
+      this.selectedRetroTurn = null;
+      this.viewingTurn = null;
+      document.getElementById('retroBtn').classList.remove('active');
+      document.getElementById('retroBtn').innerHTML = '<span>&#9889;</span> Retro Mode';
+      document.getElementById('retroPanel').classList.remove('active');
+      this.updateTimelineSlider();
+    } else {
+      if (!this.engine.canRetro(this.engine.currentPlayer)) {
+        this.showToast('No retro moves available');
+        return;
+      }
+      this.retroMode = true;
+      document.getElementById('retroBtn').classList.add('active');
+      document.getElementById('retroBtn').innerHTML = '<span>&#10005;</span> Exit Retro';
+      document.getElementById('retroPanel').classList.add('active');
+      this.populateRetroTurns();
+    }
+    this.render();
+  }
+
+  populateRetroTurns() {
+    const container = document.getElementById('retroTurns');
+    container.innerHTML = '';
+    const player = this.engine.currentPlayer;
+    const minTurn = Math.max(2, this.engine.turn - 10);
+    for (let t = minTurn; t < this.engine.turn; t++) {
+      if ((t & 1) !== (player & 1)) continue;
+      const btn = document.createElement('button');
+      btn.className = 'retro-turn-btn';
+      btn.textContent = `T${t}`;
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.retro-turn-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        this.selectedRetroTurn = t;
+        this.viewingTurn = t;
+        this.updateTimelineSlider();
+        this.render();
+        this.showToast(`Viewing Turn ${t}. Click empty cell to retro-insert.`);
+      });
+      container.appendChild(btn);
+    }
+  }
+
+  updateTimelineSlider() {
+    const slider = document.getElementById('timelineSlider');
+    if (!this.engine) return;
+    slider.max = this.engine.history.length;
+    slider.value = this.viewingTurn !== null ? this.viewingTurn : this.engine.history.length;
+  }
+
+  getBoardForView() {
+    if (this.viewingTurn === null) return this.engine.board;
+    return this.engine.snapshotAt(this.viewingTurn);
+  }
+
+  // Build or update the board DOM
+  render() {
+    if (!this.engine) return;
+    const board = this.getBoardForView();
+    const N = this.engine.N;
+    const proj = PROJECTIONS[this.projection];
+    const metaGrid = document.getElementById('metaGrid');
+
+    const axisMap = { w: 0, x: 1, y: 2, z: 3 };
+    const outer0 = axisMap[proj.outer[0]];
+    const outer1 = axisMap[proj.outer[1]];
+    const inner0 = axisMap[proj.inner[0]];
+    const inner1 = axisMap[proj.inner[1]];
+
+    // If projection or N changed, rebuild DOM. Otherwise, update in place.
+    const needsRebuild = !this.cellCache || this.cellCache.N !== N || this.cellCache.proj !== this.projection;
+
+    if (needsRebuild) {
+      metaGrid.innerHTML = '';
+      metaGrid.style.gridTemplateColumns = `repeat(${N}, auto)`;
+      const cells = new Map(); // key -> cell element
+
+      for (let o0 = 0; o0 < N; o0++) {
+        for (let o1 = 0; o1 < N; o1++) {
+          const metaCell = document.createElement('div');
+          metaCell.className = 'meta-cell';
+          const label = document.createElement('div');
+          label.className = 'meta-label';
+          label.textContent = `${proj.outer[0]}=${o0},${proj.outer[1]}=${o1}`;
+          metaCell.appendChild(label);
+
+          const miniBoard = document.createElement('div');
+          miniBoard.className = 'mini-board';
+          miniBoard.style.gridTemplateColumns = `repeat(${N}, auto)`;
+
+          for (let i0 = 0; i0 < N; i0++) {
+            for (let i1 = 0; i1 < N; i1++) {
+              const coord = [0, 0, 0, 0];
+              coord[outer0] = o0;
+              coord[outer1] = o1;
+              coord[inner0] = i0;
+              coord[inner1] = i1;
+              const [w, x, y, z] = coord;
+              const key = `${w},${x},${y},${z}`;
+
+              const cell = document.createElement('div');
+              cell.className = 'cell';
+              cell.dataset.w = w;
+              cell.dataset.x = x;
+              cell.dataset.y = y;
+              cell.dataset.z = z;
+              cell.dataset.key = key;
+
+              // Add click/hover handlers
+              cell.addEventListener('click', () => this.onCellClick(w, x, y, z));
+              cell.addEventListener('mouseenter', () => this.onCellHover(w, x, y, z));
+              cell.addEventListener('mouseleave', () => this.onCellLeave());
+
+              miniBoard.appendChild(cell);
+              cells.set(key, cell);
+            }
+          }
+          metaCell.appendChild(miniBoard);
+          metaGrid.appendChild(metaCell);
+        }
+      }
+      this.cellCache = { N, proj: this.projection, cells };
+    }
+
+    // Update cell contents
+    const isPresent = this.viewingTurn === null;
+    const canInteract = isPresent && !this.engine.gameOver && !this.isAIThinking && !this.retroMode;
+    const canRetroInteract = isPresent && !this.engine.gameOver && !this.isAIThinking && this.retroMode && this.selectedRetroTurn !== null;
+
+    for (let w = 0; w < N; w++) {
+      for (let x = 0; x < N; x++) {
+        for (let y = 0; y < N; y++) {
+          for (let z = 0; z < N; z++) {
+            const key = `${w},${x},${y},${z}`;
+            const cell = this.cellCache.cells.get(key);
+            if (!cell) continue;
+            const val = board[this.engine.idx(w, x, y, z)];
+
+            // Clear previous state
+            cell.className = 'cell';
+            cell.innerHTML = '';
+
+            if (val !== EMPTY) {
+              cell.classList.add('occupied');
+              const disc = document.createElement('div');
+              disc.className = `disc ${val === BLACK ? 'black' : 'white'}`;
+              cell.appendChild(disc);
+            } else {
+              // Show legal move hint in present mode
+              if (canInteract && this.engine.isLegal(w, x, y, z, this.engine.currentPlayer)) {
+                cell.classList.add('legal-hint');
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Update scores
+    document.getElementById('blackScore').textContent = this.engine.count(BLACK);
+    document.getElementById('whiteScore').textContent = this.engine.count(WHITE);
+
+    // Update turn indicator
+    const ti = document.getElementById('turnIndicator');
+    if (this.engine.gameOver) {
+      ti.textContent = 'Game Over';
+      ti.className = 'turn-indicator';
+    } else if (this.retroMode) {
+      ti.textContent = this.selectedRetroTurn ? `Retro: Turn ${this.selectedRetroTurn}` : 'Select Retro Turn';
+      ti.className = 'turn-indicator retro-turn';
+    } else if (this.viewingTurn !== null) {
+      ti.textContent = `Viewing Turn ${this.viewingTurn}`;
+      ti.className = 'turn-indicator';
+    } else {
+      ti.textContent = `${PLAYER_NAME[this.engine.currentPlayer]}'s Turn`;
+      ti.className = `turn-indicator ${this.engine.currentPlayer === BLACK ? 'black-turn' : 'white-turn'}`;
+    }
+
+    document.getElementById('turnInfo').textContent = `Turn ${this.engine.turn}`;
+
+    // Update buttons
+    const passBtn = document.getElementById('passBtn');
+    const retroBtn = document.getElementById('retroBtn');
+    passBtn.disabled = this.engine.gameOver || this.isAIThinking || this.retroMode || this.viewingTurn !== null;
+    retroBtn.disabled = this.engine.gameOver || this.isAIThinking;
+
+    // Auto-pass hint
+    if (isPresent && !this.engine.gameOver && !this.isAIThinking && !this.retroMode) {
+      if (!this.engine.hasLegalMove(this.engine.currentPlayer)) {
+        passBtn.classList.add('auto-pass');
+        passBtn.textContent = 'Auto Pass (No Moves)';
+      } else {
+        passBtn.classList.remove('auto-pass');
+        passBtn.textContent = 'Pass';
+      }
+    } else {
+      passBtn.classList.remove('auto-pass');
+      passBtn.textContent = 'Pass';
+    }
+
+    if (this.engine.gameOver) this.showGameOver();
+  }
+
+  onCellClick(w, x, y, z) {
+    if (!this.engine || this.engine.gameOver || this.isAIThinking) return;
+
+    // If viewing history (not in retro mode), just return to present
+    if (this.viewingTurn !== null && !this.retroMode) {
+      this.viewingTurn = null;
+      this.updateTimelineSlider();
+      this.render();
+      return;
+    }
+
+    // Retro mode: perform retro move
+    if (this.retroMode && this.selectedRetroTurn !== null) {
+      const success = this.engine.doRetro(this.selectedRetroTurn, w, x, y, z);
+      if (success) {
+        this.showToast(`${PLAYER_NAME[this.engine.currentPlayer]} retro-inserted at (${w},${x},${y},${z})`);
+        this.retroMode = false;
+        this.selectedRetroTurn = null;
+        this.viewingTurn = null;
+        document.getElementById('retroBtn').classList.remove('active');
+        document.getElementById('retroBtn').innerHTML = '<span>&#9889;</span> Retro Mode';
+        document.getElementById('retroPanel').classList.remove('active');
+        this.cellCache = null; // board changed significantly
+        this.updateTimelineSlider();
+        this.render();
+        this.checkAI();
+      } else {
+        this.showToast('Illegal retro move');
+      }
+      return;
+    }
+
+    // Normal mode: place disc
+    if (!this.engine.isLegal(w, x, y, z, this.engine.currentPlayer)) {
+      this.showToast('Illegal move');
+      return;
+    }
+
+    this.engine.doNormal(w, x, y, z);
+    this.showToast(`${PLAYER_NAME[OPP[this.engine.currentPlayer]]} played (${w},${x},${y},${z})`);
+    this.updateTimelineSlider();
+    this.render();
+    this.checkAI();
+  }
+
+  onCellHover(w, x, y, z) {
+    if (!this.engine || this.engine.gameOver || this.isAIThinking) return;
+    if (this.viewingTurn !== null && !this.retroMode) return;
+
+    const player = this.engine.currentPlayer;
+    let flips = [];
+
+    if (this.retroMode && this.selectedRetroTurn !== null) {
+      const snap = this.engine.snapshotAt(this.selectedRetroTurn);
+      const temp = new Engine(this.engine.N);
+      temp.board.set(snap);
+      flips = temp.getFlips(w, x, y, z, player);
+    } else {
+      flips = this.engine.getFlips(w, x, y, z, player);
+    }
+
+    if (flips.length === 0) return;
+
+    // Highlight hovered cell and flips
+    const cells = this.cellCache?.cells;
+    if (!cells) return;
+
+    const key = `${w},${x},${y},${z}`;
+    const cell = cells.get(key);
+    if (cell && !cell.classList.contains('occupied')) {
+      cell.classList.add(player === BLACK ? 'preview-black' : 'preview-white');
+    }
+
+    for (const [fw, fx, fy, fz] of flips) {
+      const fkey = `${fw},${fx},${fy},${fz}`;
+      const fcell = cells.get(fkey);
+      if (fcell) fcell.classList.add('flip-preview');
+    }
+  }
+
+  onCellLeave() {
+    if (!this.cellCache) return;
+    for (const cell of this.cellCache.cells.values()) {
+      cell.classList.remove('preview-black', 'preview-white', 'flip-preview');
+    }
+  }
+
+  checkAI() {
+    if (this.mode !== 'pve' || this.engine.gameOver) return;
+    if (this.engine.currentPlayer === WHITE && !this.isAIThinking) {
+      this.isAIThinking = true;
+      document.getElementById('turnIndicator').textContent = 'AI thinking...';
+      // Small delay for UX
+      setTimeout(() => this.doAIMove(), 500);
+    }
+  }
+
+  doAIMove() {
+    if (!this.engine || this.engine.gameOver) { this.isAIThinking = false; return; }
+
+    // Auto-pass if no legal moves
+    if (!this.engine.hasLegalMove(this.engine.currentPlayer)) {
+      this.engine.doPass();
+      this.showToast('AI has no moves — passed');
+      this.isAIThinking = false;
+      this.updateTimelineSlider();
+      this.render();
+      return;
+    }
+
+    const move = this.ai.move(this.engine);
+    if (move) {
+      this.engine.doNormal(move[0], move[1], move[2], move[3]);
+      this.showToast(`AI played (${move[0]},${move[1]},${move[2]},${move[3]})`);
+    } else {
+      this.engine.doPass();
+      this.showToast('AI passed');
+    }
+    this.isAIThinking = false;
+    this.updateTimelineSlider();
+    this.render();
+  }
+
+
+  // ==================== EXPORT / IMPORT ====================
+  exportGameLog() {
+    if (!this.engine) return;
+    const log = {
+      version: "1.0",
+      game: "5D Reversi",
+      boardSize: this.engine.N,
+      exportedAt: new Date().toISOString(),
+      history: this.engine.history.map(m => ({
+        turn: m.turn,
+        player: m.player === BLACK ? "B" : "W",
+        type: m.type,
+        coord: m.coord,
+        targetTurn: m.targetTurn || undefined
+      })),
+      finalScores: {
+        B: this.engine.count(BLACK),
+        W: this.engine.count(WHITE)
+      },
+      winner: this.engine.gameOver ? (this.engine.winner() === BLACK ? "B" : "W") : undefined,
+      gameOver: this.engine.gameOver
+    };
+    const blob = new Blob([JSON.stringify(log, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `5d-reversi-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    this.showToast('Game log exported');
+  }
+
+  async importGameLog(file) {
+    try {
+      const text = await file.text();
+      const log = JSON.parse(text);
+
+      // Validation
+      if (!log.boardSize || ![4,6,8].includes(log.boardSize)) {
+        this.showToast('Invalid board size in log');
+        return;
+      }
+      if (!Array.isArray(log.history)) {
+        this.showToast('Invalid history in log');
+        return;
+      }
+
+      // Validate each move
+      const N = log.boardSize;
+      for (const m of log.history) {
+        if (!m.turn || !m.player || !m.type) {
+          this.showToast('Invalid move format in log');
+          return;
+        }
+        if ((m.type === 'normal' || m.type === 'retro') && (!Array.isArray(m.coord) || m.coord.length !== 4)) {
+          this.showToast('Invalid coordinate in log');
+          return;
+        }
+        if (m.coord && m.coord.some(c => c < 0 || c >= N)) {
+          this.showToast('Coordinate out of bounds in log');
+          return;
+        }
+      }
+
+      // Build engine from log
+      const e = new Engine(N);
+      e.history = log.history.map(m => ({
+        turn: m.turn,
+        player: m.player === "B" ? BLACK : WHITE,
+        type: m.type,
+        coord: m.coord,
+        targetTurn: m.targetTurn
+      }));
+
+      // Replay to build state
+      const rebuilt = Engine.replay(e.history, N);
+      e.board = rebuilt.board;
+      e.turn = rebuilt.turn;
+      e.currentPlayer = rebuilt.currentPlayer;
+      e.consecutivePasses = rebuilt.consecutivePasses;
+      e.gameOver = rebuilt.gameOver;
+
+      // Mark retro usage from history
+      e.retroUsed = { [BLACK]: false, [WHITE]: false };
+      for (const m of e.history) {
+        if (m.type === 'retro') e.retroUsed[m.player] = true;
+      }
+
+      // Switch to game screen
+      this.engine = e;
+      this.mode = 'pvp'; // imported games are replay/spectator
+      this.ai = null;
+      this.retroMode = false;
+      this.selectedRetroTurn = null;
+      this.viewingTurn = null;
+      this.isAIThinking = false;
+      this.cellCache = null;
+
+      document.getElementById('menuScreen').classList.remove('active');
+      document.getElementById('gameScreen').classList.add('active');
+      document.getElementById('gameOverScreen').classList.remove('active');
+      document.getElementById('retroBtn').classList.remove('active');
+      document.getElementById('retroBtn').innerHTML = '<span>&#9889;</span> Retro Mode';
+      document.getElementById('retroPanel').classList.remove('active');
+
+      this.updateTimelineSlider();
+      this.render();
+      this.showToast(`Imported game: ${log.history.length} moves, ${N}x${N}x${N}x${N} board`);
+    } catch (err) {
+      this.showToast('Failed to import: ' + err.message);
+    }
+  }
+
+  showGameOver() {
+    const winner = this.engine.winner();
+    const blackCount = this.engine.count(BLACK);
+    const whiteCount = this.engine.count(WHITE);
+    document.getElementById('gameOverWinner').textContent = winner === BLACK ? 'Black Wins!' : 'White Wins!';
+    document.getElementById('finalBlack').textContent = blackCount;
+    document.getElementById('finalWhite').textContent = whiteCount;
+    document.getElementById('gameOverScreen').classList.add('active');
+  }
+
+  showToast(msg) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.classList.add('show');
+    if (this._toastTimer) clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => toast.classList.remove('show'), 2800);
+  }
+}
+
+// ==================== INIT ====================
+document.addEventListener('DOMContentLoaded', () => {
+  window.game = new GameUI();
+});
+</script>
+</body>
+</html>
