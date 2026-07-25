@@ -128,6 +128,14 @@ export interface MoveBudget {
 
 export interface PlayerAgent {
   manifest: AgentManifest;
+  /**
+   * Called exactly once per game, before the first requestMove(). The
+   * same Worker instance (and therefore any module-level/closure state
+   * you set up here — transposition tables, an MCTS tree, a loaded
+   * opening book) persists across every requestMove() call for the rest
+   * of THIS game. State does not survive across separate games: a new
+   * game gets a fresh Worker and a fresh init() call.
+   */
   init(ctx: InitContext): Promise<void>;
   requestMove(state: MoveRequest, budget: MoveBudget): Promise<AgentMove>;
 }
@@ -141,6 +149,12 @@ export interface PlayerAgent {
  * authors — it's the host-side interface that wraps a sandboxed Worker
  * running an agent module and exposes it to the game loop uniformly,
  * whether the agent is the bundled default AI or an imported file.
+ *
+ * Lifecycle guarantee: one AgentHandle wraps one Worker for the duration
+ * of exactly one game. init() runs once at game start; requestMove() may
+ * be called many times against that same live Worker; dispose() tears it
+ * down at game end (or on unrecoverable forfeiture — see the
+ * PlayerAgent spec §9). The host must never reuse a Worker across games.
  */
 export interface AgentHandle {
   readonly manifest: AgentManifest;

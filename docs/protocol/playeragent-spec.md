@@ -129,6 +129,17 @@ tables, opening book loading, worker pool creation). `init` has its own
 time budget (shell-configured, generous — e.g. 5s) since it's off the
 per-move clock.
 
+**Your agent's Worker persists for the whole game, not per move.** `init()`
+runs exactly once per game, and the same Worker instance then receives
+every subsequent `requestMove()` call for that game — it is only torn
+down (via `AgentHandle.dispose()`) at game end. This means ordinary
+module-level or closure state you set up in `init()` (a transposition
+table, an in-memory MCTS tree you want to reuse/extend move over move, a
+loaded opening book) survives naturally across your agent's turns within
+one game, with no special persistence API needed. It does **not** survive
+across separate games — a new game means a fresh Worker and a fresh
+`init()` call, so don't rely on anything carrying over between matches.
+
 ---
 
 ## 5. `requestMove(state, budget)`
