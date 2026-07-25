@@ -10,11 +10,8 @@ licensed CC BY 4.0. This repository (code, architecture, and the docs
 below) is MIT licensed per the original author's stated intent — see
 `LICENSE` and `docs/spec/rules.md` for attribution details.
 
-**Status: pre-implementation.** This repo currently contains the full
-spec, architecture decisions, and the agent (AI plugin) protocol,
-typechecked and validated but not yet wired to a running engine. See
-`docs/roadmap/build-steps.md` for the concrete, gated, step-by-step build
-plan and current progress.
+**Status:** spec + architecture frozen (v0.1), prototype live (v0.2).
+See `prototype/index.html` for the running reference implementation.
 
 ## 🎮 Try the Prototype
 
@@ -78,20 +75,21 @@ architecture planned for v1.
 
 ```
 docs/
-  spec/            Original design brief, split into rules / dev-brief / api-brief
-  architecture/     Decision log (ADRs) + package overview
-  roadmap/          Step-by-step, gated build plan
-  protocol/         PlayerAgent spec (prose) + params/engine-placement doc
+  spec/            Original design brief
+  architecture/    Decision log (ADRs) + package overview
+  roadmap/         Step-by-step build plan
+  protocol/        PlayerAgent spec
+
+prototype/         🎮 Single-file browser reference implementation
+  index.html       Complete playable game (rules + UI + AI)
 
 packages/
-  protocol/         Agent<->engine contract: protocol.ts + manifest.schema.json
-  engine/           (not yet implemented) pure rules engine
-  notation/         (not yet implemented) 5DRN serialize/parse
-  agent-host/       (not yet implemented) sandboxed Worker runner for agents
-  agents/
-    random/         (not yet implemented) reference agent
-    greedy/         (not yet implemented) reference agent
-  web/              (not yet implemented) debug UI + production UI
+  protocol/        Agent<->engine contract
+  engine/          (not yet implemented) pure rules engine
+  notation/        (not yet implemented) 5DRN serialize/parse
+  agent-host/      (not yet implemented) sandboxed Worker runner
+  agents/          (not yet implemented) reference agents
+  web/             (not yet implemented) production UI
 ```
 
 ## License
