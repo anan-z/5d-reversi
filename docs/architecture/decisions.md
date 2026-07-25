@@ -72,6 +72,30 @@ render its explanations from the same structured data the debug UI
 consumes — not a separately hand-written, UI-specific explanation string
 per screen.
 
+**Worked example** (shape to design `packages/engine`'s move-result output
+against — refined from external design review feedback, July 2026):
+
+```json
+{
+  "move": { "type": "normal", "coord": [1, 2, 0, 3] },
+  "legal": true,
+  "causalChain": [
+    "placed at T=41",
+    "captured along direction vector [+1, -1, 0, +1]",
+    "caused 7 flips",
+    "invalidated future move at T=54 (target cell no longer empty after replay)"
+  ]
+}
+```
+
+The general shape — a plain, ordered list of short human-readable steps
+that also happens to be machine-parseable (each entry ties back to a
+specific direction vector, turn number, or flip count) — is what lets one
+engine output serve both the debug UI (dump the array as-is) and the
+production UI's explanation layer (render it with icons/animation) from
+the same source, per the consequence above. Exact field names are not
+final; this is a shape to design against in Step 1-2, not a locked schema.
+
 ---
 
 ### ADR-004: Board size is config-driven from day one
@@ -178,6 +202,44 @@ headers not guaranteed present; parent-worker termination doesn't reliably
 cascade to grandchildren, so agents must self-enforce their deadline with
 a safety margin rather than relying solely on host termination. See
 `docs/protocol/playeragent-spec.md` §6-7.
+
+---
+
+### ADR-009: Canonical timeline is an ordered move log + pure reducer, not a snapshot array
+
+**Decision:** The source of truth for game history is `(openingPosition,
+[move_0, move_1, ..., move_n])` plus a pure, deterministic reducer function
+`(state, move) -> state`. Per-turn board snapshots may still be computed and
+cached for fast lookup (e.g. so `/board?offset=-k`-style queries and the UI
+don't replay from turn 0 every time), but a cached snapshot is never itself
+the source of truth — it must always be reproducible by replaying the
+reducer over the move log, and if the two ever disagree, the move log wins.
+
+**Why:** Earlier phrasing (roadmap Step 3, pre-revision) described "timeline
+as an array of immutable board snapshots" without specifying whether the
+snapshots or the move list were canonical. That ambiguity matters
+specifically because of retro moves: if snapshots were canonical, a retro
+insertion would require patching an already-materialized array of boards
+in place. Under the move-log model, a retro insertion is just: splice the
+new move into the log at the correct historical position, then re-run the
+reducer forward from there — deterministic forward replay (spec §8) falls
+out of the reducer model directly rather than needing separate patching
+logic. This is standard event-sourcing, applied here because the domain
+(a single canonical timeline that gets rewritten from a point in the past)
+is close to the textbook case it's designed for.
+
+**Consequence:** `packages/engine`'s internal turn/replay logic (roadmap
+Steps 3-4) is built around the move log + reducer as the actual data
+structure, with snapshot caching as a strictly optional performance layer
+added after correctness is established — not before. Property tests for
+Step 3 must assert the cache and the reducer-replay result can never
+diverge, not just that individual snapshots are immutable.
+
+**Credit:** raised by an external design review (ChatGPT, relayed via the
+user, July 2026); the earlier phrasing already implied roughly this model
+in Step 4's replay tests ("board state is derivable purely from opening
+position + ordered move list") but hadn't stated it as the canonical
+storage model up front in Step 3, which this ADR fixes.
 
 ---
 

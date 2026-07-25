@@ -57,10 +57,15 @@ apply a move correctly.
 ---
 
 ## Step 3 — Engine: timeline, turns, passing, game end
-**Prompt:** "Implement the turn loop: timeline as an array of immutable board
-snapshots, standard turn execution, forced pass when no legal move exists,
-game-end detection on consecutive passes, and winner determination (majority
-discs, White wins ties) per spec Section 9."
+**Prompt:** "Implement the turn loop using an event-sourced model per ADR-009
+(docs/architecture/decisions.md): the canonical timeline is an ordered move
+log plus a pure `(state, move) -> state` reducer, not an array of
+independently-mutable snapshots. Board snapshots may still be computed and
+cached per turn for fast lookup, but must always be reproducible by replaying
+the reducer over the move log from the opening position — the cache is never
+the source of truth. Implement standard turn execution, forced pass when no
+legal move exists, game-end detection on consecutive passes, and winner
+determination (majority discs, White wins ties) per spec Section 9."
 
 **Goal:** A full game can be played start-to-finish with only normal moves
 (no retro yet) and produces a correct winner.
@@ -68,8 +73,11 @@ discs, White wins ties) per spec Section 9."
 **Test before moving on:**
 - Property test: playing any sequence of legal normal moves to game-end always
   terminates and produces a valid winner
-- Property test: snapshots are truly immutable (mutating a returned snapshot
-  doesn't affect the timeline)
+- Property test: any cached snapshot is truly immutable (mutating a returned
+  snapshot doesn't affect the timeline)
+- Property test: for every turn, `reducer.replay(moveLog[0..n])` equals the
+  cached snapshot at turn n — the cache and the source of truth can never
+  diverge, by construction, not just by convention
 - Run 1,000+ random-legal-move self-play games in CI, assert no crashes/invariant violations
 
 ---

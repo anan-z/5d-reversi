@@ -53,6 +53,11 @@ plan and current progress.
 - **The "why is this legal / what just changed" explanation layer is a
   first-class subsystem**, not UI polish bolted on at the end — this was
   identified as harder than the game rules themselves. — ADR-003
+- **Canonical history is an ordered move log + a pure reducer**, not an
+  array of independently-mutable board snapshots. Snapshots are an
+  optional, always-reproducible cache. This is what makes retro-move
+  replay a clean "splice and re-run the reducer" operation instead of
+  in-place patching of materialized boards. — ADR-009
 
 ## Repository layout
 
