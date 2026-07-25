@@ -10,6 +10,10 @@ licensed CC BY 4.0. This repository (code, architecture, and the docs
 below) is MIT licensed per the original author's stated intent — see
 `LICENSE` and `docs/spec/rules.md` for attribution details.
 
+> **80 directional vectors** per cell — you'll learn to hate each one personally.  
+> **Retroactive causality** — yes, you can regret moves you haven't made yet.  
+> **Deterministic replay** — watch your carefully planned future crumble.
+
 **Status:** spec + architecture frozen (v0.1), prototype live (v0.2).
 See `index.html` for the running reference implementation.
 
