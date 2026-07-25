@@ -11,13 +11,13 @@ below) is MIT licensed per the original author's stated intent — see
 `LICENSE` and `docs/spec/rules.md` for attribution details.
 
 **Status:** spec + architecture frozen (v0.1), prototype live (v0.2).
-See `prototype/index.html` for the running reference implementation.
+See `index.html` for the running reference implementation.
 
 ## 🎮 Try the Prototype
 
 Play the single-file browser prototype (no install, no build):
 
-**[▶ Play 5D Reversi](https://anan-z.github.io/5d-reversi/prototype/)**
+**[▶ Play 5D Reversi](https://anan-z.github.io/5d-reversi/)**
 
 This is a functional reference implementation of the core rules —
 4D spatial play, 80-direction flipping, and temporal retrocausality
@@ -79,9 +79,6 @@ docs/
   architecture/    Decision log (ADRs) + package overview
   roadmap/         Step-by-step build plan
   protocol/        PlayerAgent spec
-
-prototype/         🎮 Single-file browser reference implementation
-  index.html       Complete playable game (rules + UI + AI)
 
 packages/
   protocol/        Agent<->engine contract
