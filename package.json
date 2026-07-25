@@ -1,0 +1,17 @@
+{
+  "name": "5d-reversi",
+  "private": true,
+  "description": "4D spatial Reversi with temporal retrocausality. See README.md and docs/.",
+  "license": "MIT",
+  "packageManager": "pnpm@9.0.0",
+  "workspaces": [
+    "packages/*",
+    "packages/agents/*"
+  ],
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "typecheck": "tsc --build --dry"
+  }
+}

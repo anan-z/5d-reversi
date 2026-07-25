@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  typecheck-protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Typecheck protocol package
+        run: npx tsc --strict --noEmit --lib es2020,dom packages/protocol/protocol.ts
+      - name: Validate manifest schema is well-formed JSON
+        run: node -e "JSON.parse(require('fs').readFileSync('packages/protocol/manifest.schema.json', 'utf8')); console.log('OK')"
+
+  # Additional jobs (build, test, lint across all packages) get added here
+  # as each package lands per docs/roadmap/build-steps.md — this file
+  # intentionally starts minimal rather than referencing packages that
+  # don't exist yet.

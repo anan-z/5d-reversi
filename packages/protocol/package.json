@@ -1,0 +1,12 @@
+{
+  "name": "@5d-reversi/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Engine<->agent contract: types + JSON Schema. No runtime logic.",
+  "main": "protocol.ts",
+  "types": "protocol.ts",
+  "files": [
+    "protocol.ts",
+    "manifest.schema.json"
+  ]
+}
