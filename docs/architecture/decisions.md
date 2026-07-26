@@ -73,28 +73,53 @@ consumes — not a separately hand-written, UI-specific explanation string
 per screen.
 
 **Worked example** (shape to design `packages/engine`'s move-result output
-against — refined from external design review feedback, July 2026):
+against; revised twice from external design review feedback, July 2026 —
+see revision note below):
 
 ```json
 {
-  "move": { "type": "normal", "coord": [1, 2, 0, 3] },
+  "move": { "type": "normal", "coord": [1, 2, 0, 3], "turn": 41 },
   "legal": true,
-  "causalChain": [
-    "placed at T=41",
-    "captured along direction vector [+1, -1, 0, +1]",
-    "caused 7 flips",
-    "invalidated future move at T=54 (target cell no longer empty after replay)"
+  "flipEvents": [
+    {
+      "direction": [1, -1, 0, 1],
+      "flippedCoords": [[2, 1, 0, 4], [3, 0, 0, 5]],
+      "terminatingDisc": [4, -1, 0, 6]
+    }
+  ],
+  "totalFlips": 7,
+  "invalidatedMoves": [
+    {
+      "turn": 54,
+      "reason": "target_cell_occupied",
+      "originalCoord": [3, 3, 1, 2]
+    }
   ]
 }
 ```
 
-The general shape — a plain, ordered list of short human-readable steps
-that also happens to be machine-parseable (each entry ties back to a
-specific direction vector, turn number, or flip count) — is what lets one
-engine output serve both the debug UI (dump the array as-is) and the
-production UI's explanation layer (render it with icons/animation) from
-the same source, per the consequence above. Exact field names are not
-final; this is a shape to design against in Step 1-2, not a locked schema.
+**Revision note:** the first version of this example (a `causalChain`
+array of human-readable strings, e.g. `"captured along direction vector
+[+1,-1,0,+1]"`) was called "machine-parseable" but wasn't actually
+structured — the direction, coordinates, and turn numbers were embedded
+as substrings inside prose, which is genuinely hard to consume
+programmatically (a property test or a UI component would need to parse
+English sentences to extract a coordinate). The shape above puts each
+fact in its own field (`direction`, `flippedCoords`, `terminatingDisc`,
+`reason`, etc.) instead. Human-readable text (for the debug UI or a
+tooltip) becomes a thin rendering step *over* this structured data —
+`"captured along [+1,-1,0,+1], flipping 2 discs"` is trivial to generate
+from `flipEvents[0]`, but the reverse (recovering structured data from
+already-rendered prose) is not something any consumer should have to do.
+
+This is what lets one engine output serve both the debug UI (render
+`flipEvents`/`invalidatedMoves` directly, or dump as JSON) and the
+production UI's explanation layer (same fields, prettier rendering) from
+a single source, per the consequence above — and, unlike the string-array
+version, also serve property tests directly (e.g. "assert
+`invalidatedMoves` contains turn 54 with reason `target_cell_occupied`")
+without string-matching. Exact field names are still not final; this is
+a shape to design against in Step 1-2, not a locked schema.
 
 ---
 
@@ -243,50 +268,110 @@ storage model up front in Step 3, which this ADR fixes.
 
 ---
 
-### ADR-010: Deterministic state hashing
+### ADR-010: Deterministic state hashing (two tiers: board hash and position hash)
 
-**Decision:** The engine exposes a canonical hash function over game
-state — `hash(openingPosition, moveLog[0..n]) -> string` (algorithm TBD
-at implementation time, e.g. SHA-256 over a canonical serialization of
-the board + relevant metadata) — computable at any turn, including after
-retro replay.
+**Decision:** The engine exposes **two** canonical hash functions, not
+one, because they answer different questions and collapsing them into a
+single hash causes real collisions:
 
-**Why:** Under the event-sourced model (ADR-009), "is this state correct"
-currently means comparing full board arrays or full move logs directly.
-A canonical hash makes several things cheap that would otherwise require
-shipping/diffing full state:
-- **Replay verification:** confirm `hash` before and after a
-  retro-insertion-plus-replay matches an independently-computed
-  expected value, without comparing full board arrays.
-- **Bug reports:** a player or CI failure can cite a short hash instead
-  of a full board dump — "diverges at turn 31, expected hash `abc123`,
-  got `def456`."
-- **Determinism property tests (Steps 3-4):** "replaying the same move
-  log twice produces byte-identical results" becomes "produces the same
-  hash," which is both a cheaper assertion and a more natural one to log
-  from CI failures.
-- **Future AI tournament / transposition-table use:** a fast, stable
-  position identity is a prerequisite for transposition tables (roadmap
-  Step 10) and for tournament infrastructure that needs to detect
-  repeated positions — worth having the hash function exist and be
-  stable before those features need it, rather than retrofitting a
-  hashing scheme onto an already-built search.
+1. **`hashBoard(board) -> string`** — a stable hash over cell contents
+   only. Cheap, and sufficient for what it's used for: confirming that
+   two computed board arrays (e.g. cached snapshot vs. fresh reducer
+   replay, per ADR-009) contain the same disc placement. This is the hash
+   used by the Step 3/4 replay-consistency property tests.
+2. **`hashPosition(board, retroQuotaRemaining, rulesetId) -> string`** —
+   a stable hash over the board **plus** game-state metadata that affects
+   legal future play but isn't part of the board itself. Required for any
+   use that treats "same hash" as "same node" for search or deduplication
+   purposes — transposition tables (roadmap Step 10) and tournament
+   repeated-position detection chief among them.
 
-**Consequence:** Roadmap Steps 3 and 4 gain an explicit hash-equality
-check alongside their existing property tests (see
-`docs/roadmap/build-steps.md`, updated). The hash function itself should
-be implemented and tested in Step 1-2 (alongside board representation)
-so it's available from the first property tests onward, not bolted on
-later.
+**Why the split is necessary (not just tidy):** two games can reach
+identical board cell contents while one player has already used their
+retro move and the other hasn't. Those are *not* the same position for
+minimax/transposition-table purposes — the set of legal future moves
+differs (one player can still retro, the other can't) — but `hashBoard`
+alone would collide them. The original single-hash ADR conflated "is this
+board arrangement the same" (a replay-correctness question, board-only)
+with "is this game node the same for search" (a position-identity
+question, board + quota + ruleset). Using the cheap board-only hash for
+the second purpose would silently corrupt a transposition table; using
+the heavier position hash for the first purpose would work but pay for
+metadata comparisons Step 3/4's tests don't need.
 
-**Explicitly out of scope for this ADR:** hash *collision handling*,
-cryptographic security properties, or using the hash as a substitute for
-storing the actual move log (ADR-009 already establishes the move log as
-the canonical source of truth — the hash is a fingerprint for
-verification, never a replacement for the underlying state).
+**Consequence:**
+- Roadmap Step 1 implements `hashBoard` (cheap, board-only) — this is
+  what Steps 3-4's property tests use.
+- Roadmap Step 10 (transposition tables) implements `hashPosition`,
+  layering retro-quota-remaining and ruleset identity on top of
+  `hashBoard`, not before it's actually needed.
+- `packages/notation` and bug reports should default to citing
+  `hashBoard` for simple replay-divergence reports (cheaper, and quota
+  state is already implicit in a full 5DRN move log), reserving
+  `hashPosition` for AI/search-internal use.
 
-**Credit:** raised by an external design review (ChatGPT, relayed via
-the user, July 2026).
+**Explicitly out of scope for this ADR:** hash *collision handling*
+(beyond the specific board-vs-quota collision this ADR exists to avoid),
+cryptographic security properties, or using either hash as a substitute
+for storing the actual move log (ADR-009 already establishes the move
+log as the canonical source of truth — both hashes are fingerprints for
+verification/dedup, never a replacement for the underlying state).
+
+**Credit:** original single-hash version raised by external design review
+(ChatGPT, relayed via the user, July 2026); the board-vs-position
+collision problem and the two-tier fix were raised by a subsequent,
+more rigorous external review (Grok, relayed via the user, July 2026).
+
+---
+
+### ADR-011: Retro-legal-move enumeration is engine-provided and cached, not recomputed per search node
+
+**Decision:** `packages/engine` exposes a single function that enumerates
+*all* currently-legal moves for a player — normal placements and, where
+applicable, retro moves (per player, own-parity past turns within the
+retro depth window) — as one API surface (`allLegalMoves` in the existing
+package sketches). The engine computes this once per actual game turn.
+`agent-host` calls it once to build the `MoveRequest.legalMoves` array
+handed to an agent; agents never separately re-derive or validate this
+list (per the protocol's existing "you do not need to validate legality"
+guarantee).
+
+**Why this needed deciding explicitly:** enumerating retro candidates
+requires scanning every eligible past turn (up to the depth window) ×
+every empty cell × all 80 directions — meaningfully more expensive than
+normal-move enumeration alone, especially at N=8. Left unstated, this
+creates a real tension with ADR-007 (engine has zero knowledge of
+agents): if retro-candidate enumeration were instead something an agent
+was expected to compute itself inside minimax search (recomputing it at
+every hypothetical future node, including nodes representing turns where
+retro isn't even the real current turn), the cost would multiply by the
+search tree's branching factor and depth — potentially dominating total
+AI think time. That would also violate the protocol's existing guarantee
+that agents don't need to validate/derive legality themselves.
+
+**Resolution:** the expensive retro-candidate scan happens **once**, at
+the engine level, for the actual current real-world turn only — not
+inside an agent's internal hypothetical search. An agent's own internal
+search (minimax exploring hypothetical future positions several plies
+deep) is free to approximate or omit retro moves as candidate actions at
+hypothetical future nodes for performance — the protocol does not require
+an agent's internal search to be retro-aware at every simulated depth,
+only that the *actual* move it returns for the *actual* current turn is
+chosen from the real `legalMoves` list the host gave it. Roadmap Step 10
+("retro-aware search") is about the *reference* AI choosing to model
+retro opportunities in its evaluation/search where it deems worthwhile
+for playing strength — not a protocol requirement that every agent's
+internal search tree re-enumerate retro candidates at every node.
+
+**Consequence:** no change to `packages/protocol/protocol.ts`'s existing
+`MoveRequest.legalMoves` shape — it already matches this decision. The
+clarification is about *when* the engine computes this (once per real
+turn, engine-side) versus what agents are expected to do internally
+(whatever they want, at their own performance cost, for their own
+hypothetical search).
+
+**Credit:** raised by an external design review (Grok, relayed via the
+user, July 2026).
 
 ---
 

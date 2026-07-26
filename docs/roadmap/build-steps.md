@@ -47,8 +47,13 @@ opening position at each size, and hash any board state to a stable string.
 
 ## Step 2 — Engine: move legality + flipping
 **Prompt:** "Implement the 80-direction line scan, legal move detection, and
-simultaneous flip application, per spec Section 5. A move is legal only if it
-flips ≥1 disc."
+simultaneous flip application, per spec Section 5 — including the explicit
+unbroken-run rule (a direction only yields flips if it's an unbroken run of
+opponent discs immediately adjacent to the placement, terminated by the
+player's own disc with no empty cell in between) and the simultaneity rule
+(every direction is evaluated against the pre-placement board state; one
+direction's result never affects another's within the same move). A move
+is legal only if it flips ≥1 disc."
 
 **Goal:** Given any board state, you can list legal moves for a player and
 apply a move correctly.
@@ -57,6 +62,10 @@ apply a move correctly.
 - Unit tests for each of a handful of hand-worked positions (compute expected
   flips by hand for 3-5 opening-adjacent moves, assert engine matches)
 - Property test: a move is never returned as "legal" if it flips zero discs
+- Unit test: a hand-constructed position where a direction has an opponent
+  run broken by an empty cell before reaching the player's own disc — that
+  direction must contribute zero flips (regression guard for the
+  unbroken-run rule made explicit in spec §5)
 - Property test: total disc count only ever increases by exactly 1 per normal move
   (flips convert color, they don't add/remove discs)
 
@@ -96,7 +105,13 @@ determination (majority discs, White wins ties) per spec Section 9."
 **Prompt:** "Implement retro move insertion (own-parity past turn, within
 max_retro_depth, target cell empty at that snapshot, causes ≥1 flip) and
 deterministic forward replay per spec Section 7-8: re-execute all subsequent
-original moves, skip (forced-pass) any that become illegal."
+original moves, skip (forced-pass) any that become illegal. Per spec §7 as
+clarified: the retro placement is additive (the original turn's disc is
+never removed or replaced) and the current turn is logged as an explicit
+pass in the move log, not merely skipped. Per spec §9 as clarified: a
+forced pass from replay counts identically to a voluntary pass for the
+two-consecutive-passes game-end rule — implement one pass-counting code
+path, not two."
 
 **Goal:** This is the core novel mechanic — treat it as the highest-risk code
 in the project.
@@ -105,17 +120,32 @@ in the project.
 - Property test: replaying a retro insertion twice with identical inputs
   produces byte-identical resulting timelines (determinism)
 - Property test (ADR-010): replaying a retro insertion twice with identical
-  inputs produces the *same final hash* — the practical, cheap version of
-  the determinism check above, and the form CI failures/bug reports should
-  actually cite (e.g. "diverges at turn 31: expected hash abc123, got def456")
+  inputs produces the *same final hashBoard result* — the practical, cheap
+  version of the determinism check above, and the form CI failures/bug
+  reports should actually cite (e.g. "diverges at turn 31: expected hash
+  abc123, got def456")
 - Property test: a retro move can never be inserted onto a non-empty cell in
   the target snapshot
+- Property test (spec §7, setup exclusion): a retro move can never target
+  the setup/opening position, at any board size or retro depth setting
+- Property test (spec §7, additive semantics): after a retro insertion, the
+  original move's disc at that turn is still present in the replayed
+  timeline (never silently removed) unless a *later* flip legitimately
+  changes its color
+- Property test (spec §9, forced-pass counting): a game that ends via two
+  consecutive *forced* passes (produced by a retro cascade) is detected as
+  game-over by the exact same code path as two voluntary passes — assert
+  this by constructing both scenarios and checking they hit the same
+  game-end branch, not just that both happen to end
 - Property test: after replay, every turn's board state is derivable purely
   from (opening position + ordered move list) — i.e., replay-from-scratch
   equals incremental-update
+- Property test: a player's retro-used flag, once set, never reverts to
+  unused for the rest of the game, across any further replay triggered by
+  the *other* player's later retro move
 - Regression corpus: hand-construct 5-10 specific retro scenarios (including
   a cascading multi-turn invalidation) with manually verified expected output
-  **and expected hash**, commit as fixtures
+  **and expected hashBoard result**, commit as fixtures
 - **This is the gate to spend real time on.** Don't proceed to Step 5 until
   you've thrown thousands of randomized games with random retro insertions at
   this and nothing has diverged or crashed.
@@ -189,13 +219,21 @@ through any API). Wire into the debug UI as an opponent option."
 ## Step 9 — AI: minimax + alpha-beta
 **Prompt:** "Implement minimax with alpha-beta pruning and a basic positional
 evaluation function (disc count + mobility), fixed depth, no retro-awareness
-yet. Add depth as a configurable difficulty parameter."
+yet. Add depth as a configurable difficulty parameter. Make search depth
+adaptive to board size from the start (e.g. depth 4 at N=4, depth 3 at N=6,
+depth 2 at N=8) rather than a single fixed depth across all N — branching
+factor grows sharply with N, so a depth tuned for N=4 will not finish in a
+reasonable time at N=8. Document the chosen depth-by-N mapping as a
+decision, not a magic number, since Hard/Nightmare tiers are expected to
+mean different actual search depths at different board sizes."
 
-**Goal:** A genuinely challenging single-threaded opponent at N=4.
+**Goal:** A genuinely challenging single-threaded opponent at N=4, and a
+*reasonable, bounded* one at N=6/8 rather than an unresponsive one.
 
 **Test before moving on:**
-- Benchmark: measure wall-clock time per move at depth 2/4/6 on N=4, N=6, N=8
-  — this tells you whether you need Web Workers before or after retro-awareness
+- Benchmark: measure wall-clock time per move at each configured depth on
+  N=4, N=6, N=8 — this tells you whether you need Web Workers before or
+  after retro-awareness, and whether the depth-by-N mapping needs adjusting
 - MinimaxAI(depth=4) should beat GreedyAI in the large majority of games over
   20+ self-play matches — if it doesn't, the eval function or search has a bug
 
@@ -205,7 +243,11 @@ yet. Add depth as a configurable difficulty parameter."
 **Prompt:** "Extend the search to consider retro moves as candidate actions
 at applicable turns, add iterative deepening with a time budget, and wire up
 the difficulty tiers (Easy/Medium/Hard/Nightmare/Go Cry To Mama™) from our
-earlier discussion as config presets."
+earlier discussion as config presets. Implement `hashPosition` per ADR-010
+(docs/architecture/decisions.md) — board hash plus retro-quota-remaining
+plus ruleset id — and use it (not `hashBoard` alone) as the transposition
+table key, since two positions with identical board cells but different
+retro-quota state are not the same search node."
 
 **Goal:** Difficulty tiers behave as designed — Easy is genuinely weak, not
 handicapped-but-still-optimal.
@@ -215,6 +257,9 @@ handicapped-but-still-optimal.
   each, confirm win rate ordering matches intended difficulty ordering
 - Confirm Nightmare/Go Cry To Mama™ respects its time budget (doesn't blow
   past configured think-time)
+- Property test: two constructed positions with identical board cells but
+  different retro-quota-remaining produce different `hashPosition` results
+  (the specific collision ADR-010's two-tier split exists to prevent)
 
 ---
 

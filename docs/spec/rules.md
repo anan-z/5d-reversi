@@ -61,6 +61,18 @@ Valid lines are defined by direction vectors with components in
 A placement is legal only if it flips at least one opponent disc. All
 flips occur simultaneously.
 
+**Made explicit (previously assumed, per external review feedback, July
+2026):** for a given direction, a line of opponent discs is only capturable
+if it consists of an **unbroken run of one or more opponent discs
+immediately adjacent to the placed disc, terminated by one of the
+player's own discs with no empty cell anywhere in between**. Hitting an
+empty cell, or reaching the board edge, before reaching one of the
+player's own discs means that direction contributes no flips. "All flips
+occur simultaneously" means every direction's opponent-run is evaluated
+against the board state **as it was immediately before this placement** —
+flips from one direction never feed into or block the evaluation of
+another direction within the same move.
+
 ## 6. Standard turn (present placement)
 
 On your turn, place a disc on an empty cell in the current timeline.
@@ -73,12 +85,28 @@ Constraints:
 - Only on your own past turns (same parity).
 - Retro move happens **in addition**, after the original move of that
   turn — the player effectively played two moves on that turn, and the
-  current turn is marked as a pass.
+  current turn is marked as a pass. The retro placement does not replace
+  or remove the original move's disc; both are present on the board from
+  that turn forward, and both participate normally in subsequent flips
+  and replay.
 - Within the last 10 turns (may not target the setup turn).
 - The target cell must be empty in the chosen past snapshot.
 - Placement must cause at least one flip.
-- Each player may perform at most one retro move per game (or once every
-  five turns in variant play).
+- Each player may perform at most one retro move per game under Standard
+  Rules. See `MultiRetroRules` in Section 10 for the variant that
+  permits repeated retro moves at a fixed cooldown instead.
+
+**Retro quota and legality (clarifying an interaction not previously
+spelled out):** "used their retro" refers strictly to having already
+successfully performed one, not to whether one is currently *legal*. A
+player who has not yet used their retro but has no legal retro move
+available in the current 10-turn window (e.g., no own-parity past turn in
+range still admits a legal placement) is in exactly the same position as
+a player with no legal present move and no legal retro: per Section 9,
+they must pass. Having an unused quota does not create an obligation or
+a stuck state — "cannot... perform a legal retro move" in Section 9
+covers both "already used it" and "one isn't legally available right
+now."
 
 ## 8. Deterministic forward replay
 
@@ -93,14 +121,35 @@ A player may pass only if they have no legal present move and cannot or
 chooses not to perform a legal retro move. The game ends when both
 players pass consecutively.
 
+**Forced passes count the same as voluntary passes for game-end purposes
+(clarifying an unstated case):** a turn that becomes a forced pass as a
+result of replay (Section 8) counts identically to a player's own
+voluntary pass for the "two consecutive passes ends the game" rule. There
+is no distinction between "the player chose to pass" and "replay forced
+a pass" for this purpose — both are simply an empty turn in the canonical
+move log. A cascade of several consecutive forced passes across both
+players (however many turns it spans) ends the game exactly as two
+voluntary passes would, using the same rule, not a special case.
+
 **Winner:** the player with the majority of discs in the final timeline.
-**Tiebreaker:** White wins.
+**Tiebreaker:** White wins. This asymmetric tiebreaker is an intentional,
+formal part of the ruleset (not a placeholder) — ties are not draws under
+Standard Rules.
 
 ## 10. Optional variants
 
-- **No-Retro Mode:** disables temporal moves.
-- **Short-Memory Mode:** retro depth limit reduced to 5 turns.
-- **Multi-Retro Mode:** multiple retro moves allowed (AI research only).
+- **No-Retro Mode:** disables temporal moves entirely.
+- **Short-Memory Mode:** retro depth limit reduced to 5 turns (instead of
+  the Standard Rules' 10-turn window); still one retro per player per
+  game.
+- **Multi-Retro Mode (AI research only):** removes the "one retro per
+  game" cap. Instead, each player may perform a retro move at most **once
+  every 5 turns** (measured from their own previous retro move, not the
+  global turn counter) — this is the concrete quota definition for what
+  was previously referenced only informally; there is no unlimited-retro
+  variant. All other constraints from Section 7 (own-parity turns only,
+  10-turn depth window, target cell empty, must cause a flip) still
+  apply per retro attempt.
 
 ## 11. Design intent (non-normative)
 
