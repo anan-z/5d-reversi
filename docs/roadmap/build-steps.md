@@ -9,9 +9,10 @@ are far more expensive to find later.
 
 ## Step 0 — Repo scaffolding
 **Prompt:** "Scaffold the 5D Reversi monorepo: pnpm workspaces, TypeScript strict
-mode, `packages/engine` `packages/notation` `packages/ai` `packages/web` as empty
-packages, ESLint + Prettier, Vitest, GitHub Actions CI running lint+test on push,
-MIT LICENSE, README stub."
+mode, `packages/engine` `packages/protocol` `packages/notation`
+`packages/agent-host` `packages/agents/random` `packages/agents/greedy`
+`packages/web` as empty packages, ESLint + Prettier, Vitest, GitHub Actions
+CI running lint+test on push, MIT LICENSE, README stub."
 
 **Goal:** Empty but installable/buildable monorepo. No game logic yet.
 
@@ -127,7 +128,10 @@ in the project.
 - Property test: a retro move can never be inserted onto a non-empty cell in
   the target snapshot
 - Property test (spec §7, setup exclusion): a retro move can never target
-  the setup/opening position, at any board size or retro depth setting
+  the setup/opening **turn** (the pre-game 16-disc placement, prior to
+  turn 1 — not to be confused with "any cell that happened to be part of
+  the opening position," which is a different and unrelated thing), at
+  any board size or retro depth setting
 - Property test (spec §7, additive semantics): after a retro insertion, the
   original move's disc at that turn is still present in the replayed
   timeline (never silently removed) unless a *later* flip legitimately
@@ -203,16 +207,41 @@ engine behavior, including retro moves, at N=4 and N=8.
 ---
 
 ## Step 8 — AI: naive tiers (random → greedy)
-**Prompt:** "In `packages/ai`, implement `RandomAI` and `GreedyAI` (maximize
-immediate flip count), operating directly against the engine in-process (not
-through any API). Wire into the debug UI as an opponent option."
+**Prompt:** "In `packages/agents`, implement `RandomAI` and `GreedyAI`
+(maximize immediate flip count, no lookahead) as `PlayerAgent`-conformant
+modules per `packages/protocol/protocol.ts` and
+`docs/protocol/playeragent-spec.md` — not as code that calls the engine
+directly in-process. Run them through `agent-host`'s sandboxed Worker
+loader like any import would be run, per ADR-005
+(docs/architecture/decisions.md): there is no privileged, unsandboxed
+path for built-in agents. Wire into the debug UI as opponent options."
 
-**Goal:** You can play against a trivial but legal-move-respecting opponent.
+**Difficulty tiers, defined concretely (so 'Easy is genuinely weak' has a
+checkable meaning, not just a label):**
+- **Easy = `RandomAI`:** uniform random selection from `legalMoves`, no
+  heuristic bias of any kind. Not weighted toward corners/edges — that
+  would already be a form of lookahead-free heuristic and would make
+  "Easy" stronger than intended.
+- **Medium = `GreedyAI`:** maximize immediate flip count this turn, zero
+  plies of lookahead.
+- **Hard = minimax with alpha-beta**, adaptive depth by N (Step 9).
+- **Nightmare = Hard + iterative deepening + move ordering + retro-aware
+  search at the real current turn** (Step 10).
+- **Go Cry To Mama™ = Nightmare + transposition tables (`hashPosition`,
+  ADR-010) + the largest time budget offered.**
+
+**Goal:** You can play against a trivial but legal-move-respecting
+opponent, built the same way every future agent (including imports) will
+be built.
 
 **Test before moving on:**
 - Run RandomAI vs RandomAI for 500+ games in CI — no crashes, no illegal
   moves, games always terminate
 - Play GreedyAI by hand a few times — should feel obviously beatable but not broken
+- Confirm both agents load and run through `agent-host`'s Worker sandbox,
+  not as direct function calls into `packages/engine` — this is the
+  actual test that Step 8 hasn't silently reintroduced a privileged
+  built-in-AI shortcut
 
 ---
 

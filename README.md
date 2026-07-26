@@ -10,11 +10,25 @@ licensed CC BY 4.0. This repository (code, architecture, and the docs
 below) is MIT licensed per the original author's stated intent — see
 `LICENSE` and `docs/spec/rules.md` for attribution details.
 
-**Status: pre-implementation.** This repo currently contains the full
-spec, architecture decisions, and the agent (AI plugin) protocol,
-typechecked and validated but not yet wired to a running engine. See
-`docs/roadmap/build-steps.md` for the concrete, gated, step-by-step build
-plan and current progress.
+> **80 directional vectors** per cell — you'll learn to hate each one personally.
+> **Retroactive causality** — yes, you can regret moves you haven't made yet.
+> **Deterministic replay** — watch your carefully planned future crumble.
+
+**Status:** spec + architecture frozen (v0.1), prototype live (v0.2).
+See `index.html` for the running reference implementation.
+
+## 🎮 Try the Prototype
+
+Play the single-file browser prototype (no install, no build):
+
+**[▶ Play 5D Reversi](https://anan-z.github.io/5d-reversi/)**
+
+This is a functional reference implementation of the core rules —
+4D spatial play, 80-direction flipping, and temporal retrocausality
+with deterministic replay. It does not yet reflect the final modular
+architecture planned for v1 — see `docs/architecture/decisions.md` for
+what that architecture is and why the prototype is treated as
+non-normative reference, not the source of truth.
 
 ## Start here
 
@@ -68,10 +82,19 @@ plan and current progress.
   — not recomputed inside an agent's internal hypothetical search tree,
   which would multiply an already-expensive scan by the search's
   branching factor and depth. — ADR-011
+- **The prototype (`index.html`) is a non-normative reference.** Where it
+  disagrees with `docs/spec/rules.md`, the spec wins — the prototype is
+  a playable correctness check, not part of the `packages/*` workspace,
+  build, or CI. — ADR-012
 
 ## Repository layout
 
 ```
+index.html          🎮 Single-file browser prototype (v0.2, playable at
+                        https://anan-z.github.io/5d-reversi/). Non-normative
+                        reference — see ADR-012. Not part of the packages/*
+                        workspace, build, or CI.
+
 docs/
   spec/            Original design brief, split into rules / dev-brief / api-brief
   architecture/     Decision log (ADRs) + package overview

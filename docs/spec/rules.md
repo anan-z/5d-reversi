@@ -90,7 +90,14 @@ Constraints:
   that turn forward, and both participate normally in subsequent flips
   and replay.
 - Within the last 10 turns (may not target the setup turn).
-- The target cell must be empty in the chosen past snapshot.
+- The target cell must be empty in the chosen past snapshot. Since the
+  snapshot at a given turn is taken *after* that turn's original
+  placement, this rule already excludes retro-placing on the same cell
+  as the original move of that turn — the original disc occupies it, so
+  it is not empty. (Stated explicitly here since it's easy to read the
+  additive-placement wording above as implying the two placements could
+  coincide; they cannot, as a direct consequence of the empty-cell rule,
+  not as a separate restriction.)
 - Placement must cause at least one flip.
 - Each player may perform at most one retro move per game under Standard
   Rules. See `MultiRetroRules` in Section 10 for the variant that

@@ -363,6 +363,22 @@ retro opportunities in its evaluation/search where it deems worthwhile
 for playing strength — not a protocol requirement that every agent's
 internal search tree re-enumerate retro candidates at every node.
 
+**Known limitation this creates (not just a performance tradeoff):** an
+agent whose internal search omits retro at hypothetical future nodes will
+systematically undervalue positions where the opponent's retro option is
+the actual threat — a move that looks safe several plies deep in such a
+search can still be vulnerable to a retro counterattack the search never
+modeled, because the search literally never considered it. This is a real
+playing-strength gap in the reference AI, not merely an unoptimized path
+that gets strictly better with more compute — deepening a search that
+doesn't model retro at all does not fix this, since the blind spot is
+categorical, not a matter of search depth. Roadmap Step 10 should
+document this explicitly as a known limitation of the reference AI
+(the AI is, in a real sense, playing a slightly different game than a
+human who is thinking about retro threats), not present "retro-aware
+search" as having fully closed this gap once implemented at the top
+level only.
+
 **Consequence:** no change to `packages/protocol/protocol.ts`'s existing
 `MoveRequest.legalMoves` shape — it already matches this decision. The
 clarification is about *when* the engine computes this (once per real
@@ -372,6 +388,42 @@ hypothetical search).
 
 **Credit:** raised by an external design review (Grok, relayed via the
 user, July 2026).
+
+---
+
+### ADR-012: The prototype (`index.html`) is a non-normative reference, not the source of truth
+
+**Decision:** `index.html` — the single-file browser implementation living
+at repo root — is a useful, playable reference for sanity-checking rules
+and UX, but it is not authoritative. Where the prototype's behavior and
+`docs/spec/rules.md` disagree, the spec is correct and the prototype has
+a bug (or reflects an intentional simplification worth reconciling), not
+the other way around. The prototype is also not part of the `packages/*`
+pnpm workspace, build, lint, typecheck, or CI pipeline (see
+`docs/architecture/overview.md`'s package-status table) — it's a
+standalone artifact, not an implementation of any roadmap step.
+
+**Why this needed stating explicitly:** the prototype has, in practice,
+been a genuinely useful correctness check — several rules ambiguities
+were resolved by observing how the prototype's author (independently)
+resolved them (e.g. logging retro's current-turn action as an explicit
+pass, per `rules.md` §7). That back-and-forth is valuable, but it creates
+a risk: without an explicit statement of precedence, a future contributor
+could reasonably treat matching prototype behavior as the bar for
+correctness instead of matching the spec, especially once `packages/web`
+eventually supersedes the prototype as the real UI. Stating precedence
+now, while there's only one prototype and one spec to reconcile, avoids
+a harder argument later once there's more code depending on either.
+
+**Consequence:** any future discrepancy between `index.html` and
+`docs/spec/rules.md` should be resolved by treating it as a rules
+clarification task (does the spec need to be more explicit, per the
+pattern in ADR-003/§5/§7/§9's recent clarifications) or a prototype bug
+report — never by changing the spec to match the prototype's behavior
+without independently deciding that behavior is actually correct.
+
+**Credit:** raised by an external design review (Grok, relayed via the
+user, July 2026: "treat the prototype as non-normative immediately").
 
 ---
 
