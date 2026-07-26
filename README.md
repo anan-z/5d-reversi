@@ -117,3 +117,14 @@ packages/
 - Original game concept & rules text: CC BY 4.0, Anan Zeevy — see
   `docs/spec/rules.md`.
 - Code and repository documentation in this tree: MIT — see `LICENSE`.
+
+## 🏆 Hall of Fame
+
+| Title | Holder | Era | Record | Status |
+|-------|--------|-----|--------|--------|
+| Inaugural Intergalactic Champion | Anan Zeevy | Pre-Engine (v0.1–v0.2) | Undefeated (0–0) | Retired |
+| First Retroactive Revocation | *Pending* | — | — | Awaiting a legal retro |
+
+*Championship status is subject to deterministic forward replay. A future
+retro move may invalidate any entry per `docs/spec/rules.md` §8. Claims
+are non-normative under ADR-012.*
