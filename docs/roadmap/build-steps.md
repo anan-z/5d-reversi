@@ -81,7 +81,15 @@ cached per turn for fast lookup, but must always be reproducible by replaying
 the reducer over the move log from the opening position — the cache is never
 the source of truth. Implement standard turn execution, forced pass when no
 legal move exists, game-end detection on consecutive passes, and winner
-determination (majority discs, White wins ties) per spec Section 9."
+determination (majority discs, White wins ties) per spec Section 9. Per
+spec §9's actual condition — a player may pass only if they have no legal
+present move (retro availability never blocks passing, since the rule's
+'or chooses not to perform a legal retro move' clause always permits
+declining it) — the engine itself must reject a submitted normal pass when
+the player has a legal present move available. This must be enforced at
+the engine/reducer level, not left as a UI-only affordance (e.g. a
+disabled button) that a programmatic client — including any `PlayerAgent`,
+built-in or imported — could simply not respect."
 
 **Goal:** A full game can be played start-to-finish with only normal moves
 (no retro yet) and produces a correct winner.
@@ -98,6 +106,15 @@ determination (majority discs, White wins ties) per spec Section 9."
   `hashBoard(cachedSnapshotAtTurn(n))` for every turn — same check as above,
   expressed as the cheap hash comparison that later steps and CI failure
   logs will actually use day to day
+- Property test (spec §9, engine-level pass validation): submitting a
+  normal pass move is rejected/treated as illegal by the reducer itself
+  whenever the acting player has at least one legal present move — assert
+  this directly against the engine API, not against any UI affordance.
+  This is the engine-level regression guard for a real bug class: the
+  prototype (`index.html`) initially only prevented invalid passes by
+  disabling the pass button in the UI, which a non-UI client (a
+  `PlayerAgent` submitting `{ type: "pass" }` directly) would not have
+  been stopped by
 - Run 1,000+ random-legal-move self-play games in CI, assert no crashes/invariant violations
 
 ---
