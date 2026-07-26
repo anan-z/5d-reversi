@@ -1,33 +1,4 @@
 <!DOCTYPE html>
-<!--
-================================================================================
-  5D REVERSI
-  4D Spatial Strategy with Temporal Retrocausality
-
-  Game Concept, Rules & Design Brief
-    Author:  Anan Zeevy
-    Date:    January 2026
-    License: Creative Commons Attribution 4.0 International (CC BY 4.0)
-
-  Code Implementation
-    Built by: Kimi (Moonshot AI)
-    Date:     2026
-    License:  MIT License
-
-  Repository
-    https://github.com/anan-z/5d-reversi
-
-  Description
-    A complete, single-file browser implementation of 5D Reversi.
-    Features configurable board sizes (4/6/8), AI opponents (Easy/
-    Medium/Hard), six 2D slice projections, timeline replay, and
-    temporal retrocausality with deterministic forward replay.
-
-  How to Play
-    Open this file in any modern web browser. No server, no build step,
-    no external dependencies required.
-================================================================================
--->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1320,7 +1291,7 @@ class GameUI {
     // Update buttons
     const passBtn = document.getElementById('passBtn');
     const retroBtn = document.getElementById('retroBtn');
-    passBtn.disabled = this.engine.gameOver || this.isAIThinking || this.retroMode || this.viewingTurn !== null;
+    passBtn.disabled = this.engine.gameOver || this.isAIThinking || this.retroMode || this.viewingTurn !== null || this.engine.hasLegalMove(this.engine.currentPlayer);
     retroBtn.disabled = this.engine.gameOver || this.isAIThinking;
 
     // Auto-pass hint
