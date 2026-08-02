@@ -182,6 +182,14 @@
     transition: background 0.1s;
     position: relative;
   }
+  .cell.corner {
+    box-shadow: inset 0 0 0 1.5px var(--yellow);
+    background: rgba(249,212,35,0.08);
+  }
+  .cell.corner.occupied {
+    box-shadow: inset 0 0 0 2px var(--yellow), 0 0 8px rgba(249,212,35,0.25);
+    background: rgba(249,212,35,0.12);
+  }
   .cell:hover:not(.occupied) { background: var(--bg-cell-hover); }
   .cell.occupied { cursor: default; }
   .cell.legal-hint { box-shadow: inset 0 0 0 1px rgba(78,204,163,0.3); }
@@ -1249,6 +1257,10 @@ class GameUI {
             // Clear previous state
             cell.className = 'cell';
             cell.innerHTML = '';
+
+            // True corners: all coordinates at boundary (0 or N-1)
+            const isCorner = (w === 0 || w === N - 1) && (x === 0 || x === N - 1) && (y === 0 || y === N - 1) && (z === 0 || z === N - 1);
+            if (isCorner) cell.classList.add('corner');
 
             if (val !== EMPTY) {
               cell.classList.add('occupied');
