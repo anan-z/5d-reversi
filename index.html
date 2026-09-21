@@ -33,7 +33,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    overflow-x: hidden;
+    overflow-x: auto;
   }
   .screen { display: none; width: 100%; max-width: 1000px; padding: 16px; }
   .screen.active { display: block; }
@@ -160,7 +160,12 @@
     overflow: auto;
     max-height: 68vh;
   }
-  .meta-grid { display: grid; gap: 6px; justify-content: center; }
+  .meta-grid {
+    display: grid;
+    gap: 6px;
+    width: max-content;
+    margin: 0 auto;
+  }
   .meta-cell { display: flex; flex-direction: column; align-items: center; }
   .meta-label { font-size: 0.65rem; color: var(--text-dim); margin-bottom: 3px; font-weight: 600; letter-spacing: 0.5px; }
   .mini-board {
