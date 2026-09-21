@@ -14,7 +14,7 @@ below) is MIT licensed per the original author's stated intent — see
 > **Retroactive causality** — yes, you can regret moves you haven't made yet.
 > **Deterministic replay** — watch your carefully planned future crumble.
 
-**Status:** spec + architecture frozen (v0.1), prototype live (v0.2).
+**Status:** spec + architecture frozen (v0.1), prototype live (v0.2.1).
 See `index.html` for the running reference implementation.
 
 ## 🎮 Try the Prototype
