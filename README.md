@@ -90,7 +90,7 @@ non-normative reference, not the source of truth.
 ## Repository layout
 
 ```
-index.html          🎮 Single-file browser prototype (v0.2, playable at
+index.html          🎮 Single-file browser prototype (v0.2.2, playable at
                         https://anan-z.github.io/5d-reversi/). Non-normative
                         reference — see ADR-012. Not part of the packages/*
                         workspace, build, or CI.
